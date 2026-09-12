@@ -8,7 +8,8 @@ Claude Code and in pi makes it possible, and what it would revisit.
 Recorded 2026-09-11, after a pi session (gpt-5.6-luna) spent 33 seconds working out
 which agent it was, and after reading the comparison of Claude Code and pi at
 https://github.com/disler/pi-vs-claude-code/blob/main/COMPARISON.md. That comparison was
-written against pi 0.52.10; the pi facts below were checked against pi 0.84.1.
+written against pi 0.52.10; the pi facts below were checked against pi 0.84.1, and again
+against pi 0.85.1.
 
 1. **Delivery at turn end when channels are unavailable.** Claude Code's `Stop` hook
    can keep a session going when a turn ends, so it could hand over waiting inbox
