@@ -1353,6 +1353,160 @@ identity, stamped at startup and checked on every pooled connection and health p
 refused with `503 foreign_database` until restart (D38); the user guide says a second
 instance needs its own project AND both ports.
 
+---
+
+### 45. A question typed in the terminal was answered to the operator's seat on the board (2026-09-13)
+
+**Observed (architect, 2026-09-13).** Installed release v0.1.6
+(`~/work/operations/vvk-courtyard`), team `vvklab-team` with two pi agents:
+`lab-manager` (claude-sonnet-5 through LiteLLM) and `inventory-agent` (openai
+gpt-5.6-luna). Typed into lab-manager's terminal: "ask inventory agent if he has any
+CSV files in his directory", then the same question about `.md` files. Expected:
+lab-manager asks inventory-agent without fuss and answers in the terminal. Instead it
+talked about the operator ("Answer relayed to operator"), and after the second question
+said "There's already an open thread with the operator. I'll wait for their reply on
+that line before sending this update"; the second answer never reached the terminal.
+After a release on the WebUI the architect asked for both questions again: the same
+relay happened, and the line needed a second release.
+
+**Review (senior engineer, same evening).** Evidence: both pi session files
+(`~/.pi/agent/sessions/`), the installed hub's database (read only) and the WebUI; times
+below are local. inventory-agent behaved as intended in both rounds: it searched,
+answered with `courtyard_send` and ended its turn. The faults are on the hub's side.
+
+1. **The closing footer sends the answer to a terminal question onto the board.** Each
+   answer reached lab-manager with the initiator's closing footer (`hub/core/envelope.py`
+   `_CLOSING_FOOTER_INITIATOR`): "If you asked on someone else's behalf (your operator, a
+   peer), deliver them the answer now with the courtyard tool `courtyard_send`: text
+   printed in your terminal reaches nobody." The membership block adds "Text printed in
+   this terminal never reaches the board; only courtyard_send does"
+   (`common/session_context.py`), and the pi skill carries the same relay rule
+   (`hub/core/install.py`). For a model whose operator is typing in its terminal, these
+   read as: the terminal is dead, and the operator's answer goes through `courtyard_send`.
+   At 20:38:05 lab-manager closed the thread and, in the same step, sent the answer to
+   `operator`; at 21:06:21 it did the same. The rule was written for item 26, where the
+   operator asked on the board. The hub cannot tell that case from a question typed in
+   the terminal, and "reaches nobody" is false when the operator is the one typing. Not
+   pi-specific: Claude Code agents receive the same footer and membership block.
+2. **An agent's message to the operator waits for a reply the operator does not give.**
+   The relay opened a thread on the operator's line and left the line `awaiting_reply`
+   from the operator (`hub/core/turns.py`: an auto-pass send on an idle line makes the
+   recipient owe a reply; the operator's lines are forced to auto-pass, not exempted from
+   turns). The operator reads reports and does not answer them on the board. The second
+   relay (20:39:28) was refused with `turn_violation`, and the model told the terminal it
+   would wait for the operator. As it stands, every terminal question costs the operator
+   a release click.
+3. **Release frees the turn but leaves the thread open, and nobody can close it.**
+   `Board.release` sets the line idle and writes "line released to idle by the operator"
+   into the open thread without ending it. The thread, opened by lab-manager at 20:38,
+   cannot be closed by lab-manager (it is told to close only in an answer's footer, and
+   no answer comes) nor by the operator (the close control shows only for threads the
+   operator opened: `webui/js/conversation.js`, as `docs/design/threads.md` section 3
+   specifies). It stays open until End shift expires it. The 21:06 relay landed in the
+   same thread, so one thread now holds two unrelated reports, and the thread is the unit
+   D37's case files are built from.
+4. **The pi terminal cuts a courtyard message at 12 lines** (`adapters/pi/extension.ts`,
+   the message renderer's collapsed view). The footers ended at "If you asked on" and
+   "permissions do not", which reads as a broken message. The model receives the full
+   envelope; only the operator's view is cut.
+
+Also seen: lab-manager's first send went to `inventory`; the hub refused it with
+`unknown_agent`, and the model spent a `courtyard_peers` call to find `inventory-agent`.
+
+**Proposed remedies (awaiting the architect's decision):**
+- **R1** (fault 1) the footer states a fact the hub holds instead of a rule the model
+  cannot apply. At delivery the hub looks up the lines awaiting the recipient's reply. If
+  there are any: "You still owe a reply to: operator. If this answer is for them, send it
+  with `courtyard_send`." If there are none: "Nobody on the board is waiting on you. If the
+  person typing in your terminal asked, answer them there." Item 26's case falls in the
+  first branch, because the operator's board message left the line awaiting the agent.
+  The membership block and the skill draw the same distinction: the person typing in this
+  terminal is your operator and reads it; messages that arrive through the hub are
+  answered with `courtyard_send`. Cost: `render()` is pure over `Message`, so the names
+  owed a reply become a field filled at delivery, one query per delivery. A wording-only
+  change is cheaper but risks the opposite error of items 16 and 24 (a board question
+  answered in the terminal).
+- **R2** (fault 2) an agent's message to the operator does not put the line into
+  `awaiting_reply`. The turn rule is backpressure between agents; the operator is the
+  one participant who does not take turns on request. This changes §5.4 for operator
+  lines. Open point: operator threads are unbudgeted, so without the turn rule nothing
+  bounds how often an agent reports to the operator.
+- **R3** (fault 3) release ends the open thread as `locked` (the lifecycle's "an
+  authority other than the initiator ended it"), the release entry being its last
+  message. Independent of that, the operator's close control could show for any open
+  thread on the operator's own line.
+- **R4** (fault 4) the collapsed view shows the header and the body, hides preamble and
+  footer, and adds one line saying ctrl+o shows the full envelope.
+- **R5** (minor) `unknown_agent` names the closest registered names.
+
+With R1, this scenario no longer triggers faults 2 and 3, but both stay reachable
+whenever an agent does report to the operator.
+
+**Touches.** `hub/core/envelope.py` (footers, `render`) and the `with_rendering` callers
+(`hub/core/deliver.py`, `channels.py`, `board.py`); `common/session_context.py`;
+`hub/core/install.py` (pi skill); `hub/core/turns.py` and `Board.send` / `Board.release`;
+`docs/design/threads.md` sections 3 and 4; design doc §5.4 and the reply footer
+paragraph; `webui/js/conversation.js` (close control); `adapters/pi/extension.ts`
+(renderer).
+
+**Status.** open
+
+---
+
+### 46. The installed hub's log: a token in plain text, no timestamps, a lost database served as healthy (2026-09-13)
+
+**Observed (review of the installed hub, 2026-09-13).** `sandbox/hub.log` of the
+installed release (the LaunchAgent's stdout and stderr, created 2026-09-12 17:33) had
+grown to 12 MB.
+
+**Review (senior engineer, same evening).**
+1. **The operator's token is in the log.** On a fresh database the hub creates the
+   operator and logs "created operator agent <id>, token (stored; only needed for the
+   agent API): <token>" (`hub/core/registry.py` `ensure_operator`). The log file is mode
+   644 and never rotated, so the token stays in a file every local user can read. The
+   registry does not refuse rotating the operator's token (`rotate_token`); whether
+   rotating it affects the WebUI was not checked.
+2. **No timestamps.** `configure_logging` (`hub/main.py`) calls `logging.basicConfig`
+   with the default format (level, logger, message), and uvicorn's lines carry none
+   either. The log cannot say when anything happened; the outage below could not be
+   dated from it.
+3. **A lost database is served as a running hub.** The hub process before the
+   2026-09-13 reinstall lost postgres (`connection refused` on 26432) and never
+   recovered: from the first failure to that process's shutdown, every database-backed
+   request waited the pool's 30 seconds and returned 500 with a full traceback (1,398
+   ASGI tracebacks, 1,565 `PoolTimeout`, 172 "liveness sweep failed" with tracebacks, 238
+   pool connection warnings). Meanwhile `/api/health` answered 200 1,375 times: it always
+   returns 200 and reports the failure only in the body (`"db": "error: ..."`,
+   `hub/api/__init__.py`). Nothing brings postgres back while the hub runs:
+   `scripts/hub-launch.sh` runs `docker compose up --wait postgres` only before starting
+   the hub, the container's restart policy is `no`, and launchd restarts only a hub that
+   exits. Why postgres refused connections is not established.
+4. **Size.** 10.9 MB of the 12 MB are those tracebacks; the access lines at INFO came to
+   0.9 MB (10.6k lines) over about 28 hours. Nothing rotates the LaunchAgent's log.
+
+**Proposed remedies (awaiting the architect's decision):**
+- **R1** never log the token value: the startup line names the operator's id and says
+  the token is stored. For existing installs: delete that line from `hub.log`, or rotate
+  the operator's token once rotating it is confirmed harmless.
+- **R2** a timestamp on every log line, one format for the hub's loggers and uvicorn's.
+- **R3** a lost database is visible and recovers by itself. A pool timeout or failed
+  connection maps to `503 database_unavailable` (like D38's `503 foreign_database`),
+  logged once when the outage starts and once at recovery instead of a traceback per
+  request; `/api/health` returns 503 when the database ping fails, so every caller of
+  health sees it. For the LaunchAgent, one of two: the hub exits after a sustained outage,
+  so launchd restarts it through `hub-launch.sh`, which brings postgres up; or postgres
+  gets `restart: unless-stopped` in compose. To discuss: exiting also covers a removed
+  container, the restart policy only a stopped one.
+- **R4** a size bound: `hub-launch.sh` rotates `hub.log` at start above a size limit
+  (keeping one previous file). Low priority once R3 ends the traceback flood.
+
+**Touches.** `hub/core/registry.py` (`ensure_operator`); `hub/main.py`
+(`configure_logging`, `AccessLog`, the liveness loop); `hub/api/__init__.py`
+(`/api/health`); `hub/storage/postgres.py` (pool); `scripts/hub-launch.sh`;
+`docker-compose.yml`; `scripts/install.py` (plist log paths).
+
+**Status.** open
+
 ## Work packages (discussion outcome, 2026-08-24)
 
 Cycle 1 was reviewed with the senior engineer; duplicates were merged (6c = 3.1; 7.1
@@ -1424,3 +1578,5 @@ that review.
 | 42 | Threads: a bounded exchange about one ask inside a line (serial in v1; lifecycle open/closed/expired/locked) | domain model / storage / envelope / shift / WebUI | open — design in `docs/design/threads.md` |
 | 43 | The directory picker should look standard → native macOS folder dialog via the hub, in-page dialog as fallback | WebUI / api/fs | implemented, awaiting his check |
 | 44 | The hub followed a foreign postgres on its port and served another instance's database | storage / health / docs | implemented (D38 identity), awaiting his check |
+| 45 | A terminal question answered to the operator's seat: closing footer relay rule, operator line waits on the operator, release leaves the thread open, pi view cuts messages at 12 lines | envelope / turn machine / threads / pi renderer | open |
+| 46 | Installed hub log: operator token in plain text, no timestamps, a lost database served as healthy with a traceback per request, no rotation | logging / health / storage / LaunchAgent | open |

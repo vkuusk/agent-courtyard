@@ -1225,8 +1225,9 @@ against are *accidents and prompt-level attacks*, not a hostile local user.
 ## 12. Repository directory layout
 
 One Python package with multiple console entry points (hub, dummy, adapter pieces share
-models and the client library; one venv, DevOps-friendly). Frontend and future TS adapter kept
-apart from Python source.
+models and the client library; one venv, DevOps-friendly). The frontend is kept apart from
+the Python source; the pi extension (TypeScript) ships inside the package as the template
+install renders into an agent's workdir.
 
 ```
 cbx-agent-courtyard/
@@ -1249,12 +1250,11 @@ cbx-agent-courtyard/
 │   │   ├── core/                   # registry, lines, turns, gate/Approver, deliver(), envelope, peers
 │   │   ├── storage/                # repository interfaces, postgres backend, migrations/
 │   │   └── launch/                 # post-v1 (D16): launch profiles, L1 terminal spawn
-│   ├── adapters/
-│   │   └── claude_code/            # MCP stdio server (thin, D14), courtyard-invite (6d)
-│   └── dummy/                     # fake agent (echo / script / manual)
+│   └── adapters/                   # one package per agent type (§7)
+│       ├── claude_code/            # MCP stdio server (thin, D14), courtyard-invite (6d)
+│       ├── pi/                     # the pi extension template (extension.ts), rendered by install
+│       └── dummy/                  # fake agent (echo / script / manual), the contract's reference
 ├── webui/                          # static: index.html, style.css, js/ (Preact + htm ES modules), vendor/ (one file)
-├── adapters-js/
-│   └── pi/                         # post-v1 (D16): pi TypeScript extension (own package.json)
 ├── scripts/                        # demo scenarios (e.g. two-dummies-conversation)
 └── tests/                          # pytest: unit (core) + integration (hub+dummies over HTTP)
 ```
