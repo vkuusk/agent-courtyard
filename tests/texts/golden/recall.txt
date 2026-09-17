@@ -1,0 +1,53 @@
+===== no searchable words =====
+The question 'the a of' holds no searchable words (only stop words or punctuation). Ask again with the words that matter: a tool, a module, a name.
+
+===== nothing found =====
+The team's memory holds nothing matching 'vpc ipv6'. Nobody has settled this through the courtyard before; ask the peer who owns it.
+
+===== a listing, best match first =====
+2 records from the team's memory (best match first). A case file is one closed exchange: who asked, what was settled, and the operator's verdicts; a note is what an agent or the operator wanted the team to know. Fetch one in full with courtyard_recall(case=<id>).
+
+1. [00000000-0000-0000-0000-00000000000a] infra-agent ↔ tf-agent, closed 2026-01-01, 3 messages, 1 returned
+   ask (infra-agent): (the opening ask of the thread, cut to the recall length)
+   resolution: (the last message that got through, cut to the recall length)
+   verdict return: (the operator's comment on a returned draft)
+
+2. [00000000-0000-0000-0000-00000000000b] note by tf-agent (for infra-agent ↔ tf-agent), 2026-01-01
+   (a note an agent or the operator left for this line, cut to the recall length)
+
+===== a listing, newest first =====
+1 record from the team's memory (newest first). A case file is one closed exchange: who asked, what was settled, and the operator's verdicts; a note is what an agent or the operator wanted the team to know. Fetch one in full with courtyard_recall(case=<id>).
+
+1. [00000000-0000-0000-0000-00000000000a] infra-agent ↔ tf-agent, closed 2026-01-01, 3 messages, 1 returned
+   ask (infra-agent): (the opening ask of the thread, cut to the recall length)
+   resolution: (the last message that got through, cut to the recall length)
+   verdict return: (the operator's comment on a returned draft)
+
+===== a case file =====
+Case file [00000000-0000-0000-0000-00000000000a]: infra-agent ↔ tf-agent, opened by infra-agent 2026-01-01, closed by infra-agent; 3 messages, 2 approved, 1 returned, 0 dropped.
+
+1. infra-agent → tf-agent [return: say which module version]
+   does the vpc module
+   support ipv6?
+2. hub
+   Your message (seq 1) was returned.
+3. tf-agent → infra-agent [approve]
+   yes, since 4.2
+
+===== a note =====
+Note [00000000-0000-0000-0000-00000000000b] by tf-agent, for infra-agent ↔ tf-agent, 2026-01-01 (accepted).
+
+(a note an agent or the operator left for this line, cut to the recall length)
+
+===== a returned note =====
+Note [00000000-0000-0000-0000-00000000000b] by tf-agent, for infra-agent ↔ tf-agent, 2026-01-01 (returned).
+
+(a note an agent or the operator left for this line, cut to the recall length)
+
+Operator's comment: too vague
+
+===== note result: accepted =====
+Noted and remembered (id 00000000-0000-0000-0000-00000000000b), for infra-agent ↔ tf-agent: recall finds it from now on. Nothing further is needed.
+
+===== note result: held =====
+Noted (id 00000000-0000-0000-0000-00000000000b); held for the operator, who approves, returns or drops notes the way messages are gated. You will be told if it is returned or dropped. Once accepted it is team-wide: recall finds it.

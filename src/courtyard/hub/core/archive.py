@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import Archive, Line, Message
 from courtyard.hub.core.errors import ArchiveNotFound, LineNotFound, NotAllowed
 from courtyard.hub.core.events import EventBus
@@ -57,7 +58,7 @@ def archive_line_in(
             sender=None,
             recipient=None,  # log-only board entry
             kind="system",
-            body=f"history archived by the operator ({n} message{'s' if n != 1 else ''})",
+            body=texts.render("notices.board.archived", count=n, plural="s" if n != 1 else ""),
             reply_to=None,
             status="delivered",
         )

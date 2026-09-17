@@ -23,6 +23,7 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import (
     Agent,
     Line,
@@ -136,55 +137,77 @@ def _when(record: MemoryRecord) -> str:
     return stamp.strftime("%Y-%m-%d")
 
 
+def _plural(count: int) -> str:
+    return "s" if count != 1 else ""
+
+
 def _note_scope(record: MemoryRecord) -> str:
-    return "team-wide" if record.scope == "team" else f"for {_who(record)}"
+    if record.scope == "team":
+        return texts.render("listings.scope.team")
+    return texts.render("listings.scope.line", who=_who(record))
 
 
 def render_listing(question: str, records: list[MemoryRecord], searchable: bool = True) -> str:
     """The recall tool's text: bounded, trimmed, each record with its handle."""
+    unknown = texts.render("listings.recall.unknown")
+    none = texts.render("listings.recall.none")
     if not searchable:
         # not "nothing settled": the question could not be searched at all
-        return (
-            f"The question {question!r} holds no searchable words (only stop words or"
-            " punctuation). Ask again with the words that matter: a tool, a module, a name."
-        )
+        return texts.render("listings.recall.unsearchable", question=question)
     if not records:
-        return (
-            f"The team's memory holds nothing matching {question!r}. Nobody has settled this "
-            "through the courtyard before; ask the peer who owns it."
-        )
-    how = "best match first" if question.strip() else "newest first"
+        return texts.render("listings.recall.nothing", question=question)
+    order = "best_match" if question.strip() else "newest"
     lines = [
-        (
-            f"{len(records)} record{'s' if len(records) != 1 else ''} from the team's memory "
-            f"({how}). A case file is one closed exchange: who asked, what was settled, and "
-            "the operator's verdicts; a note is what an agent or the operator wanted the team "
-            "to know. Fetch one in full with courtyard_recall(case=<id>)."
+        texts.render(
+            "listings.recall.header",
+            count=len(records),
+            plural=_plural(len(records)),
+            order=texts.render(f"listings.recall.order.{order}"),
         ),
         "",
     ]
     for n, r in enumerate(records, 1):
         if r.kind == "note":
             lines.append(
-                f"{n}. [{r.id}] note by {r.author_name or '?'} ({_note_scope(r)}), {_when(r)}"
+                texts.render(
+                    "listings.recall.note_head",
+                    n=n,
+                    id=r.id,
+                    author=r.author_name or unknown,
+                    scope=_note_scope(r),
+                    when=_when(r),
+                )
             )
-            lines.append(f"   {r.body}")
+            lines.append(texts.render("listings.recall.note_body", body=r.body))
             lines.append("")
             continue
         counts = []
         if r.returned:
-            counts.append(f"{r.returned} returned")
+            counts.append(texts.render("listings.recall.case_returned", count=r.returned))
         if r.dropped:
-            counts.append(f"{r.dropped} dropped")
-        tail = f", {', '.join(counts)}" if counts else ""
+            counts.append(texts.render("listings.recall.case_dropped", count=r.dropped))
         lines.append(
-            f"{n}. [{r.id}] {_who(r)}, closed {_when(r)}, "
-            f"{r.message_count} message{'s' if r.message_count != 1 else ''}{tail}"
+            texts.render(
+                "listings.recall.case_head",
+                n=n,
+                id=r.id,
+                who=_who(r),
+                when=_when(r),
+                count=r.message_count,
+                plural=_plural(r.message_count),
+                tail=f", {', '.join(counts)}" if counts else "",
+            )
         )
-        lines.append(f"   ask ({r.opened_by_name or '?'}): {r.ask or '(none)'}")
-        lines.append(f"   resolution: {r.resolution or '(none)'}")
+        lines.append(
+            texts.render(
+                "listings.recall.case_ask", opener=r.opened_by_name or unknown, ask=r.ask or none
+            )
+        )
+        lines.append(
+            texts.render("listings.recall.case_resolution", resolution=r.resolution or none)
+        )
         for v in r.verdicts:
-            lines.append(f"   verdict {v}")
+            lines.append(texts.render("listings.recall.case_verdict", verdict=v))
         lines.append("")
     return "\n".join(lines).rstrip()
 
@@ -192,51 +215,64 @@ def render_listing(question: str, records: list[MemoryRecord], searchable: bool 
 def render_case(record: MemoryRecord) -> str:
     """The full record as text: a case file's header and every message in order, or a
     note with its author, scope and standing."""
+    unknown = texts.render("listings.recall.unknown")
     if record.kind == "note":
-        head = (
-            f"Note [{record.id}] by {record.author_name or '?'}, {_note_scope(record)}, "
-            f"{_when(record)} ({record.status})."
+        head = texts.render(
+            "listings.record.note_head",
+            id=record.id,
+            author=record.author_name or unknown,
+            scope=_note_scope(record),
+            when=_when(record),
+            status=record.status,
         )
-        tail = f"\n\nOperator's comment: {record.gate_note}" if record.gate_note else ""
+        tail = ""
+        if record.gate_note:
+            tail = "\n\n" + texts.render("listings.record.note_comment", comment=record.gate_note)
         return f"{head}\n\n{record.body}{tail}"
     doc = record.document or {}
     lines = [
-        (
-            f"Case file [{record.id}]: {_who(record)}, opened by "
-            f"{record.opened_by_name or '?'} {_when(record)}, closed by "
-            f"{doc.get('closed_by') or '?'}; {record.message_count} "
-            f"message{'s' if record.message_count != 1 else ''}, {record.approved} approved, "
-            f"{record.returned} returned, {record.dropped} dropped."
+        texts.render(
+            "listings.record.case_head",
+            id=record.id,
+            who=_who(record),
+            opener=record.opened_by_name or unknown,
+            when=_when(record),
+            closer=doc.get("closed_by") or unknown,
+            count=record.message_count,
+            plural=_plural(record.message_count),
+            approved=record.approved,
+            returned=record.returned,
+            dropped=record.dropped,
         ),
         "",
     ]
     for m in doc.get("messages", []):
-        who = m.get("sender_name") or ("hub" if m.get("kind") == "system" else "operator")
-        to = m.get("recipient_name")
-        verdict = ""
-        if m.get("gate_verdict"):
-            verdict = f" [{m['gate_verdict']}"
-            if m.get("gate_note"):
-                verdict += f": {m['gate_note']}"
-            verdict += "]"
-        head = f"{m.get('seq', '?')}. {who}" + (f" → {to}" if to else "") + verdict
+        who = m.get("sender_name") or texts.render(
+            "listings.record.sender_hub"
+            if m.get("kind") == "system"
+            else "listings.record.sender_operator"
+        )
+        head = texts.render("listings.record.message_head", seq=m.get("seq", unknown), who=who)
+        if m.get("recipient_name"):
+            head += texts.render("listings.record.message_to", to=m["recipient_name"])
+        if m.get("gate_verdict") and m.get("gate_note"):
+            head += texts.render(
+                "listings.record.message_verdict_comment",
+                verdict=m["gate_verdict"],
+                comment=m["gate_note"],
+            )
+        elif m.get("gate_verdict"):
+            head += texts.render("listings.record.message_verdict", verdict=m["gate_verdict"])
         lines.append(head)
-        lines.append("   " + (m.get("body") or "").replace("\n", "\n   "))
+        body = (m.get("body") or "").replace("\n", "\n   ")
+        lines.append(texts.render("listings.record.message_body", body=body))
     return "\n".join(lines).rstrip()
 
 
 def render_note_result(record: MemoryRecord) -> str:
     """What the `courtyard_note` tool tells the author right after writing."""
-    if record.status == "pending":
-        return (
-            f"Noted (id {record.id}); held for the operator, who approves, returns or drops "
-            f"notes the way messages are gated. You will be told if it is returned or "
-            f"dropped. Once accepted it is {_note_scope(record)}: recall finds it."
-        )
-    return (
-        f"Noted and remembered (id {record.id}), {_note_scope(record)}: recall finds it from "
-        "now on. Nothing further is needed."
-    )
+    outcome = "held" if record.status == "pending" else "accepted"
+    return texts.render(f"listings.note_result.{outcome}", id=record.id, scope=_note_scope(record))
 
 
 QUESTION_EMBED_SECONDS = 5.0
@@ -452,11 +488,11 @@ class Memory:
             mine = any(p.id == viewer for p in record.participants)
             if record.kind == "note":
                 if record.status != "accepted" and record.author != viewer:
-                    raise NotAllowed("this note is not part of the team's memory")
+                    raise NotAllowed(texts.render("refusals.recall.note_not_in_memory"))
                 if record.scope == "line" and not mine:
-                    raise NotAllowed("this note is for a line you are not party to")
+                    raise NotAllowed(texts.render("refusals.recall.note_other_line"))
             elif not all_cases and not mine:
-                raise NotAllowed("this case file is from a line you are not party to")
+                raise NotAllowed(texts.render("refusals.recall.case_other_line"))
         return record
 
     def recall(self, agent: Agent, question: str, limit: int | None = None) -> RecallView:
@@ -496,9 +532,9 @@ class Memory:
         supervised, and always when it is team-wide (it would reach everyone)."""
         body = body.strip()
         if not body:
-            raise NoteScopeUnclear("a note needs a body")
+            raise NoteScopeUnclear(texts.render("refusals.note.no_body"))
         if len(body) > NOTE_MAX_CHARS:
-            raise NoteScopeUnclear(f"a note is at most {NOTE_MAX_CHARS} characters")
+            raise NoteScopeUnclear(texts.render("refusals.note.too_long", limit=NOTE_MAX_CHARS))
         with self._storage.transaction() as uow:
             line = None if team_wide else self._scope_line(uow, author, peer, line_id)
             if line is None:
@@ -551,9 +587,7 @@ class Memory:
         if len(candidates) == 1:
             return candidates[0]
         raise NoteScopeUnclear(
-            "say whom the note is for: `peer` names the line, or `team_wide` for everyone"
-            if candidates
-            else "you have no line yet: use `team_wide`, or send to a peer first"
+            texts.render("refusals.note.which_line" if candidates else "refusals.note.no_line")
         )
 
     def pending(self) -> list[MemoryRecord]:
@@ -578,10 +612,10 @@ class Memory:
                 line = uow.lines.get_or_create_locked(
                     operator.id, record.author, self._settings().default_line_mode
                 )
-                verb = "returned to you" if verdict == "return" else "dropped (do not resend it)"
-                body = f"Your note to the team's memory ({record.body[:80]!r}) was {verb}."
+                outcome = "returned" if verdict == "return" else "dropped"
+                body = texts.render(f"notices.note.{outcome}", excerpt=record.body[:80])
                 if verdict == "return" and note:
-                    body += f" Operator's comment: {note}"
+                    body += texts.render("notices.note.comment", note=note)
                 notice = uow.messages.insert(
                     message_id=uuid4(),
                     line_id=line.id,

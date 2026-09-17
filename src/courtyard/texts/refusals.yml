@@ -1,0 +1,25 @@
+# Refusals an agent's tool call can meet. The model reads them as "[code] message".
+
+unknown_agent: no agent named {name!r}
+agent_gone: agent {name!r} was removed from the courtyard
+send_to_self: cannot send a message to yourself
+no_line_with_self: you have no line with yourself
+not_linked: you have no line with {name!r}; the operator links agents in this courtyard
+turn_violation: 'line busy: awaiting a reply to the message in flight; you may send again once it is answered'
+gate_pending:
+  send: 'line blocked: a message is awaiting a gate decision'
+  close: a message on this line is awaiting the operator's gate decision; the thread cannot close until it is decided
+thread_open: a thread is still open on your line with {name!r}; a new ask begins only after it is closed. Send without new_thread to continue the open thread, or — if you opened it and the ask is settled — close it first
+thread_locked: the thread with {name!r} reached its exchange budget ({budget} messages) and the hub has locked it; {plain_name} was told. Your message was NOT sent. Do not restate the same ask in a new thread — if it truly needs more exchanges, involve your operator. A genuinely different ask may be sent now; it opens a new thread.
+no_open_thread: no open thread on your line with {name!r}
+not_thread_initiator: this thread was opened by {name!r}; only its initiator closes it — answer with a message instead
+body_too_large: message body exceeds {limit} bytes
+note:
+  no_body: a note needs a body
+  too_long: a note is at most {limit} characters
+  which_line: 'say whom the note is for: `peer` names the line, or `team_wide` for everyone'
+  no_line: 'you have no line yet: use `team_wide`, or send to a peer first'
+recall:
+  note_not_in_memory: this note is not part of the team's memory
+  note_other_line: this note is for a line you are not party to
+  case_other_line: this case file is from a line you are not party to

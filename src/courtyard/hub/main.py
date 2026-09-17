@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from courtyard.hub.api import router
 from courtyard.hub.config import DEFAULT_PG_PORT, Config, load_config
+from courtyard.hub.core import results
 from courtyard.hub.core.archive import Archiver
 from courtyard.hub.core.board import Board
 from courtyard.hub.core.channels import ChannelService
@@ -41,7 +42,15 @@ startup_logger = logging.getLogger("courtyard.startup")
 def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.http_status,
-        content={"error": {"code": exc.code, "message": str(exc), **exc.extra}},
+        content={
+            "error": {
+                "code": exc.code,
+                "message": str(exc),
+                # the refusal as a model reads it; adapters forward it verbatim
+                "rendered": results.refusal(exc.code, str(exc)),
+                **exc.extra,
+            }
+        },
     )
 
 

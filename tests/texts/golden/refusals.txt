@@ -1,0 +1,50 @@
+===== unknown recipient =====
+The courtyard hub refused: [unknown_agent] no agent named 'nobody'
+
+===== send to yourself =====
+The courtyard hub refused: [invalid_recipient] cannot send a message to yourself
+
+===== removed recipient =====
+The courtyard hub refused: [agent_gone] agent 'dave' was removed from the courtyard
+
+===== send while a message is held =====
+The courtyard hub refused: [gate_pending] line blocked: a message is awaiting a gate decision
+
+===== close while a message is held =====
+The courtyard hub refused: [gate_pending] a message on this line is awaiting the operator's gate decision; the thread cannot close until it is decided
+
+===== send before the answer =====
+The courtyard hub refused: [turn_violation] line busy: awaiting a reply to the message in flight; you may send again once it is answered
+
+===== new ask on an open thread =====
+The courtyard hub refused: [thread_open] a thread is still open on your line with 'bob'; a new ask begins only after it is closed. Send without new_thread to continue the open thread, or — if you opened it and the ask is settled — close it first
+
+===== close by the other side =====
+The courtyard hub refused: [not_thread_initiator] this thread was opened by 'alice'; only its initiator closes it — answer with a message instead
+
+===== close with no open thread =====
+The courtyard hub refused: [no_open_thread] no open thread on your line with 'bob'
+
+===== close on your own line =====
+The courtyard hub refused: [invalid_recipient] you have no line with yourself
+
+===== budget spent =====
+The courtyard hub refused: [thread_locked] the thread with 'bob' reached its exchange budget (2 messages) and the hub has locked it; bob was told. Your message was NOT sent. Do not restate the same ask in a new thread — if it truly needs more exchanges, involve your operator. A genuinely different ask may be sent now; it opens a new thread.
+
+===== body too large =====
+The courtyard hub refused: [body_too_large] message body exceeds 16384 bytes
+
+===== note with no line =====
+The courtyard hub refused: [note_scope_unclear] you have no line yet: use `team_wide`, or send to a peer first
+
+===== empty note =====
+The courtyard hub refused: [note_scope_unclear] a note needs a body
+
+===== note with two lines =====
+The courtyard hub refused: [note_scope_unclear] say whom the note is for: `peer` names the line, or `team_wide` for everyone
+
+===== no line under manual discovery =====
+The courtyard hub refused: [not_linked] you have no line with 'carol'; the operator links agents in this courtyard
+
+===== a case file of someone else's line =====
+The courtyard hub refused: [not_allowed] this case file is from a line you are not party to

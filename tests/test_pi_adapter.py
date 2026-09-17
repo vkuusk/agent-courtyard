@@ -242,3 +242,27 @@ def test_pi_membership_context_without_a_hub_is_the_built_in_text(tmp_path):
         assert "of the team" not in text
     finally:
         harness.stop()
+
+
+def test_pi_registers_the_packaged_tools_when_the_hub_is_down(tmp_path):
+    """Design communication-protocols.md section 8: the extension fetches its tool
+    definitions at session start and falls back to the copy install rendered into it."""
+    ext = tmp_path / "courtyard.mjs"
+    ext.write_text(install_core.pi_extension("http://127.0.0.1:9", "pibot", "no-token"))
+    harness = Harness(ext)
+    try:
+        events = harness.collect_until(lambda e: e["event"] == "started", what="session_start")
+        registered = [e["name"] for e in events if e["event"] == "tool_registered"]
+        assert registered == [
+            "courtyard_send",
+            "courtyard_close_thread",
+            "courtyard_inbox",
+            "courtyard_peers",
+            "courtyard_recall",
+            "courtyard_note",
+            "courtyard_ack",
+        ]
+        missing = harness.call("courtyard_send", to="bob")
+        assert missing["event"] == "tool_error" and "`to` and `message`" in missing["text"]
+    finally:
+        harness.stop()

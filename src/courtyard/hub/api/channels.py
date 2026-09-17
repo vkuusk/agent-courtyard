@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from courtyard.common.models import Agent, AttachSummary
 from courtyard.hub.api.deps import require_agent, require_agent_named
+from courtyard.hub.core import results
 from courtyard.hub.core.channels import ChannelService
 from courtyard.hub.core.errors import NotAllowed
 from courtyard.hub.core.registry import Registry
@@ -81,7 +82,8 @@ def ack_delivery(
     """Item 34 (D30): the model returns a delivery-check token. ok=False means the
     token matched no open check (timed out or superseded) — not an error."""
     agent = _own(request, name_or_id, caller)
-    return {"ok": channels.ack_delivery(agent, body.token)}
+    confirmed = channels.ack_delivery(agent, body.token)
+    return {"ok": confirmed, "result": results.ack(confirmed)}
 
 
 @router.post("/{name_or_id}/verify-delivery")

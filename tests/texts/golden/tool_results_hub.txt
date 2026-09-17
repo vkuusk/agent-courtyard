@@ -1,0 +1,20 @@
+===== send: delivered =====
+Delivered to bob (seq 7). This line is now awaiting their reply — do not send to bob again until they answer.
+
+===== send: held at the gate =====
+Held at the gate for the operator's approval (seq 7); it has not reached bob yet. Wait — you will be told if it is returned or dropped.
+
+===== send: recipient not connected =====
+Accepted (seq 7); bob is not connected right now, so the hub will hand it over when they attach. The line is awaiting their reply.
+
+===== close =====
+Thread closed; the hub has told bob. A new ask with bob may start now.
+
+===== ack: confirmed =====
+Delivery confirmed to the hub. Nothing further is needed.
+
+===== ack: check no longer open =====
+That check is no longer open (it may have timed out or been superseded); nothing further is needed.
+
+===== a refusal =====
+The courtyard hub refused: [turn_violation] (the refusal's message)

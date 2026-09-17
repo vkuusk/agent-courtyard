@@ -1449,7 +1449,36 @@ whenever an agent does report to the operator.
 paragraph; `webui/js/conversation.js` (close control); `adapters/pi/extension.ts`
 (renderer).
 
-**Status.** open
+**Status.** decided 2026-09-17 → designed in `docs/design/communication-protocols.md`
+and `docs/design/threads.md`; nothing built yet. R1 became the owed-reply statement
+(with the optional `serves` link), R2 and R3 are as designed there, and an agent's
+report to the operator now ends its own thread at once. R4 (the pi collapsed view) and
+R5 (`unknown_agent` names the closest agents) are still open.
+
+To build, in this order (step 1 done 2026-09-17: `src/courtyard/texts`, goldens in
+`tests/texts/golden`, tool results worded by the hub, both adapters fetching their texts;
+the one wording change it made is that a refusal reads the same in both adapters, without
+the id lines the Claude Code adapter used to append; pi's source confirms that a tool
+registered during `session_start` is in the first request, a live pi check is still owed):
+1. The texts package (`communication-protocols.md` section 8): first generate golden
+   files from the current code, then move every model-facing text into `courtyard/texts`
+   as a pure refactor that the golden tests prove; tool results rendered by the hub;
+   adapters fetch tool definitions and instructions from the hub with a packaged
+   fallback. Check first that a tool the pi extension registers during `session_start`
+   is in the tool list of pi's first request.
+2. Reword per sections 3 to 6: the membership block and the etiquette (section 4.3), the
+   notice preamble, the footers and the owed-reply statement, the send result stating
+   the line's state.
+3. Protocol changes (section 7 and `threads.md`): auto-pass as the default for a new
+   line; an agent's message to the operator awaits no reply and its thread ends at
+   once; a release ends the open thread as `locked`; notices to the participants for a
+   release and for an expiry; `serves`; the team-wide brake on the WebUI.
+4. User-facing docs, with the release that changes the behaviour: `README.md` ("a new
+   team starts supervised and earns auto-pass"), `docs/quickstart.md` ("supervised by
+   default"), `docs/user-guide.md`, and the runbook entries of the changed features.
+
+`architecture-v1.md` already states the design (revised 2026-09-17: the Operator and
+User vocabulary rows, §5.2 and D6, §5.4 rules 6 to 8, §5.6, the §7.5 footer paragraph).
 
 ---
 
@@ -1578,5 +1607,5 @@ that review.
 | 42 | Threads: a bounded exchange about one ask inside a line (serial in v1; lifecycle open/closed/expired/locked) | domain model / storage / envelope / shift / WebUI | open — design in `docs/design/threads.md` |
 | 43 | The directory picker should look standard → native macOS folder dialog via the hub, in-page dialog as fallback | WebUI / api/fs | implemented, awaiting his check |
 | 44 | The hub followed a foreign postgres on its port and served another instance's database | storage / health / docs | implemented (D38 identity), awaiting his check |
-| 45 | A terminal question answered to the operator's seat: closing footer relay rule, operator line waits on the operator, release leaves the thread open, pi view cuts messages at 12 lines | envelope / turn machine / threads / pi renderer | open |
+| 45 | A terminal question answered to the operator's seat: closing footer relay rule, operator line waits on the operator, release leaves the thread open, pi view cuts messages at 12 lines | envelope / turn machine / threads / pi renderer | decided 2026-09-17: design in `communication-protocols.md` + `threads.md`; build list in the item; R4, R5 open |
 | 46 | Installed hub log: operator token in plain text, no timestamps, a lost database served as healthy with a traceback per request, no rotation | logging / health / storage / LaunchAgent | open |

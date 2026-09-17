@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from courtyard import texts
 from courtyard.hub.core.errors import (
     CannotRelease,
     GatePendingBlock,
@@ -40,15 +41,14 @@ class SendPlan:
 def plan_message_send(line: TurnState, sender: UUID, recipient: UUID) -> SendPlan:
     if line.state == "pending_gate":
         raise GatePendingBlock(
-            "line blocked: a message is awaiting a gate decision",
+            texts.render("refusals.gate_pending.send"),
             in_flight_msg=str(line.in_flight_msg),
         )
     reply_to = None
     if line.state == "awaiting_reply":
         if sender != line.awaiting_from:
             raise TurnViolation(
-                "line busy: awaiting a reply to the message in flight; "
-                "you may send again once it is answered",
+                texts.render("refusals.turn_violation"),
                 awaiting_from=str(line.awaiting_from),
                 in_flight_msg=str(line.in_flight_msg),
             )

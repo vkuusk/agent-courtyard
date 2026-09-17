@@ -39,7 +39,13 @@ const pi = {
   },
   registerTool(def) {
     tools.set(def.name, def);
-    out({ event: "tool_registered", name: def.name });
+    // everything the model reads of a tool, for the golden files (tests/texts)
+    const { name, label, description, promptGuidelines, parameters } = def;
+    out({
+      event: "tool_registered",
+      name,
+      definition: { name, label, description, promptGuidelines, parameters },
+    });
   },
   registerCommand(name, def) {
     commands.set(name, def);

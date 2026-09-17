@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from courtyard.common.models import Agent, Archive, Line, LineMode, Message, Thread
 from courtyard.hub.api.deps import get_archiver, get_board, require_agent
+from courtyard.hub.core import results
 from courtyard.hub.core.archive import Archiver
 from courtyard.hub.core.board import Board
 
@@ -46,7 +47,8 @@ def send(
     sender: Annotated[Agent, Depends(require_agent)],
     board: Annotated[Board, Depends(get_board)],
 ) -> Message:
-    return board.send(sender, body.to, body.body, body.new_thread)
+    message = board.send(sender, body.to, body.body, body.new_thread)
+    return message.model_copy(update={"result": results.send(message, body.to)})
 
 
 @router.post("/close-thread")
@@ -57,7 +59,8 @@ def close_thread(
 ) -> Thread:
     """Close the open thread on the closer's line with a peer (D34): the initiator
     declares the ask settled. No message, no note — the close is the whole event."""
-    return board.close_thread(closer, body.peer)
+    thread = board.close_thread(closer, body.peer)
+    return thread.model_copy(update={"result": results.close(body.peer)})
 
 
 @router.post("", status_code=201)

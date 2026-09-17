@@ -77,6 +77,8 @@ class Thread(BaseModel):
     ended_at: datetime | None = None
     # display enrichment, filled by the storage layer's join
     opened_by_name: str | None = None
+    # filled by the hub on the answer to an agent's close call: the tool result
+    result: str | None = None
 
 
 class Line(BaseModel):
@@ -133,6 +135,9 @@ class Message(BaseModel):
     # authority-graded envelope (design §7.5), ready for the model verbatim. Absent on
     # operator-facing reads (board, line history), which show the raw body.
     rendered: str | None = None
+    # filled by the hub on the answer to a send: the tool result, worded for the sender
+    # (design communication-protocols.md section 3.3). Adapters forward it verbatim.
+    result: str | None = None
 
 
 class Archive(BaseModel):

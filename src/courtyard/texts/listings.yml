@@ -1,0 +1,52 @@
+# The listings the hub composes line by line: the peers roster (courtyard_peers) and
+# the team's memory (courtyard_recall, courtyard_note). The renderers in hub/core put
+# the lines together; the wording of each line is here.
+
+peers:
+  alone: You are the only agent on this courtyard board.
+  alone_managed: You have no lines yet — the operator links agents in this courtyard.
+  header: 'Agents on the courtyard board (send with courtyard_send):'
+  entry: '{name} — {type}, {status}'
+  owns: ' — owns: {domain}'
+  description: ' — {description}'
+  not_for: ' — not for: {anti_scope}'
+  hidden: (and {count} more registrations that have not been active)
+  managed: (the agents listed are the ones you can reach; the operator manages the links)
+
+recall:
+  unsearchable: 'The question {question!r} holds no searchable words (only stop words or punctuation). Ask again with the words that matter: a tool, a module, a name.'
+  nothing: The team's memory holds nothing matching {question!r}. Nobody has settled this through the courtyard before; ask the peer who owns it.
+  header: '{count} record{plural} from the team''s memory ({order}). A case file is one closed exchange: who asked, what was settled, and the operator''s verdicts; a note is what an agent or the operator wanted the team to know. Fetch one in full with courtyard_recall(case=<id>).'
+  order:
+    best_match: best match first
+    newest: newest first
+  note_head: '{n}. [{id}] note by {author} ({scope}), {when}'
+  note_body: '   {body}'
+  case_head: '{n}. [{id}] {who}, closed {when}, {count} message{plural}{tail}'
+  case_returned: '{count} returned'
+  case_dropped: '{count} dropped'
+  case_ask: '   ask ({opener}): {ask}'
+  case_resolution: '   resolution: {resolution}'
+  case_verdict: '   verdict {verdict}'
+  none: (none)
+  unknown: '?'
+
+scope:
+  team: team-wide
+  line: for {who}
+
+record:
+  note_head: Note [{id}] by {author}, {scope}, {when} ({status}).
+  note_comment: 'Operator''s comment: {comment}'
+  case_head: 'Case file [{id}]: {who}, opened by {opener} {when}, closed by {closer}; {count} message{plural}, {approved} approved, {returned} returned, {dropped} dropped.'
+  message_head: '{seq}. {who}'
+  message_to: ' → {to}'
+  message_verdict: ' [{verdict}]'
+  message_verdict_comment: ' [{verdict}: {comment}]'
+  message_body: '   {body}'
+  sender_hub: hub
+  sender_operator: operator
+
+note_result:
+  held: 'Noted (id {id}); held for the operator, who approves, returns or drops notes the way messages are gated. You will be told if it is returned or dropped. Once accepted it is {scope}: recall finds it.'
+  accepted: 'Noted and remembered (id {id}), {scope}: recall finds it from now on. Nothing further is needed.'

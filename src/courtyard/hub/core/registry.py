@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import AGENT_COLORS, Agent, PeersView
 from courtyard.hub.core.archive import archive_line_in
 from courtyard.hub.core.errors import (
@@ -175,7 +176,7 @@ class Registry:
         except ValueError:
             agent = uow.agents.get_by_name(name_or_id)
         if agent is None:
-            raise UnknownAgent(f"no agent named {name_or_id!r}")
+            raise UnknownAgent(texts.render("refusals.unknown_agent", name=name_or_id))
         return agent
 
     def get(self, name_or_id: str) -> Agent:

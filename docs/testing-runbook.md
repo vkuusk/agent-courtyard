@@ -1176,6 +1176,70 @@ uv run python scripts/runbook/memory_export.py
 
 ---
 
+## Tool results worded by the hub (design communication-protocols.md sections 3.3 and 8)
+
+**Feature under test:** what a courtyard tool returns to a model is written by the
+hub and forwarded by the adapter, the way the envelope and the peers listing are. The
+answer to a send carries `result`, the answer to a close carries `result`, the answer
+to an acknowledgement carries `result`, and a refusal carries `rendered` beside its
+`code` and `message`. Both adapters show the same words; a refusal reads
+"The courtyard hub refused: [code] message" in both.
+
+**Scripted part** (any hub; changes no courtyard-wide setting):
+
+```
+uv run python scripts/runbook/tool_results.py
+```
+
+Checkpoints printed: held at the gate; accepted for an agent that is not connected;
+a refusal as the model reads it; the close; delivered to the operator; an
+acknowledgement no check is waiting for.
+
+**Manual part:**
+
+1. In a Claude Code agent and in a pi agent, ask each to message a peer on a
+   supervised line: both terminals show the same "Held at the gate" sentence.
+2. Ask one of them to send again before the answer: the refusal starts with
+   "The courtyard hub refused: [turn_violation]" and carries no ids.
+
+The wording itself is in `src/courtyard/texts/results.yml`; the golden files
+`tests/texts/golden/tool_results_*.txt` show every variant.
+
+
+---
+
+## Adapters fetch their texts from the hub (design communication-protocols.md section 8)
+
+**Feature under test:** at session start an adapter asks the hub for its tool
+definitions, its standing instructions and the few texts it words on its own side
+(`GET /api/agents/{name}/texts`), and uses the copy packaged with it when the hub does
+not answer. The two adapters get the same definitions in their hosts' shapes; they
+differ only by the variables declared in `src/courtyard/texts/tools.yml`. A wording
+change reaches an agent at its next session start, without rewriting its files. The
+pi skill is the exception: pi loads it from disk, so it changes with "sync dir".
+
+**Scripted part** (any hub; changes no courtyard-wide setting):
+
+```
+uv run python scripts/runbook/adapter_texts.py
+```
+
+Checkpoints printed: the Claude Code bundle (MCP entries, instructions); the pi bundle
+(labels, guidelines, no instructions); the declared differences and nothing else; the
+packaged copy used when no hub answers, with the same wording.
+
+**Manual part:**
+
+1. Start a pi agent with the hub up: `.courtyard/adapter.log` in its workdir says
+   `tools registered (hub wording)`, and the seven courtyard tools answer.
+2. Stop the hub, start the pi session again: the log says
+   `tools registered (packaged wording)` and the tools are still listed.
+3. A Claude Code agent started while the hub is down still lists the tools
+   (`/mcp` in the session); its adapter log says the packaged copy is in use.
+
+
+---
+
 ## The database's identity: a swapped postgres is refused (D38, item 44)
 
 **Feature under test:** at startup the hub stamps the database with an identity

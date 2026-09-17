@@ -1,0 +1,45 @@
+===== send: forwarded =====
+(the hub's wording)
+
+===== close: forwarded =====
+(the hub's wording)
+
+===== ack: forwarded =====
+(the hub's wording)
+
+===== a refusal: forwarded (error) =====
+(the hub's wording)
+
+===== an error the hub did not word (error) =====
+The courtyard hub refused: [http_error] (a body the hub did not word)
+
+===== hub unreachable (error) =====
+The courtyard hub at http://127.0.0.1:9 is unreachable: connection refused
+
+===== send: missing arguments (error) =====
+both `to` and `message` are required
+
+===== close: missing peer (error) =====
+`peer` is required
+
+===== inbox: empty =====
+No unread courtyard messages.
+
+===== inbox: two messages =====
+(envelope one)
+(envelope two)
+
+===== ack: missing token (error) =====
+`token` is required
+
+===== note: no rendered text from the hub =====
+Noted (id 00000000-0000-0000-0000-00000000000b).
+
+===== note: missing body (error) =====
+`body` is required
+
+===== recall: bad limit (error) =====
+`limit` must be a whole number, got 'many'
+
+===== unknown tool (error) =====
+unknown tool: courtyard_nothing

@@ -1,0 +1,14 @@
+===== send: missing arguments (error) =====
+both `to` and `message` are required
+
+===== close: missing peer (error) =====
+`peer` is required
+
+===== inbox: empty =====
+No unread courtyard messages.
+
+===== ack: missing token (error) =====
+`token` is required
+
+===== note: missing body (error) =====
+`body` is required

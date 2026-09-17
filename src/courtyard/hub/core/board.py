@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import Agent, Line, Message, Thread
 from courtyard.hub.core import turns
 from courtyard.hub.core.deliver import Deliverer
@@ -63,14 +64,14 @@ def expire_open_work(uow: UnitOfWork) -> tuple[list[Line], list[Message], list[T
         if locked.in_flight_msg is not None:
             expired = uow.messages.expire(locked.in_flight_msg)
         uow.lines.set_turn(locked.id, "idle", None, None)
-        what = "held at the gate" if locked.state == "pending_gate" else "awaiting a reply"
+        what = "expired_held" if locked.state == "pending_gate" else "expired_awaiting"
         entry = uow.messages.insert(
             message_id=uuid4(),
             line_id=locked.id,
             sender=None,
             recipient=None,  # log-only board entry
             kind="system",
-            body=f"the message {what} expired at end of shift",
+            body=texts.render(f"notices.board.{what}"),
             reply_to=locked.in_flight_msg,
             status="delivered",
             thread_id=locked.open_thread,
@@ -92,7 +93,7 @@ def expire_open_work(uow: UnitOfWork) -> tuple[list[Line], list[Message], list[T
                 sender=None,
                 recipient=None,  # log-only board entry
                 kind="system",
-                body="the open thread expired at end of shift",
+                body=texts.render("notices.board.expired_thread"),
                 reply_to=None,
                 status="delivered",
                 thread_id=thread.id,
@@ -150,18 +151,15 @@ class Board:
         with self._storage.transaction() as uow:
             recipient = self._registry.resolve(uow, to)
             if recipient.id == sender.id:
-                raise InvalidRecipient("cannot send a message to yourself")
+                raise InvalidRecipient(texts.render("refusals.send_to_self"))
             if recipient.removed_at is not None:
-                raise AgentGone(f"agent {recipient.name!r} was removed from the courtyard")
+                raise AgentGone(texts.render("refusals.agent_gone", name=recipient.name))
             if self._discovery() == "manual" and "human" not in (sender.type, recipient.type):
                 # §5.8 (D22): the line IS the permission — no line, no send. Operator
                 # pairs are exempt and keep forming their line on first message below.
                 line = uow.lines.get_pair_locked(sender.id, recipient.id)
                 if line is None:
-                    raise NotLinked(
-                        f"you have no line with {recipient.name!r}; "
-                        "the operator links agents in this courtyard"
-                    )
+                    raise NotLinked(texts.render("refusals.not_linked", name=recipient.name))
             else:
                 line = uow.lines.get_or_create_locked(
                     sender.id, recipient.id, self._default_line_mode()
@@ -198,12 +196,7 @@ class Board:
                             sender=None,
                             recipient=participant,
                             kind="system",
-                            body=(
-                                f"thread locked: its exchange budget ({budget} messages) "
-                                "is spent without closure — the courtyard ended this "
-                                "exchange. Do not restate the same ask in a new thread; "
-                                "if it truly needs more, involve your operator."
-                            ),
+                            body=texts.render("notices.thread.locked", budget=budget),
                             reply_to=None,
                             status="queued",
                             thread_id=thread_id,
@@ -213,10 +206,7 @@ class Board:
             elif new_thread:
                 thread = uow.threads.get(thread_id)
                 raise ThreadStillOpen(
-                    f"a thread is still open on your line with {recipient.name!r}; a new "
-                    "ask begins only after it is closed. Send without new_thread to "
-                    "continue the open thread, or — if you opened it and the ask is "
-                    "settled — close it first",
+                    texts.render("refusals.thread_open", name=recipient.name),
                     opened_by=thread.opened_by_name or str(thread.opened_by),
                 )
             if locked is None:
@@ -246,11 +236,12 @@ class Board:
                 self._events.publish("message", notice)
                 self._deliverer.deliver(notice)
             raise ThreadLocked(
-                f"the thread with {recipient.name!r} reached its exchange budget "
-                f"({budget} messages) and the hub has locked it; {recipient.name} was "
-                "told. Your message was NOT sent. Do not restate the same ask in a new "
-                "thread — if it truly needs more exchanges, involve your operator. A "
-                "genuinely different ask may be sent now; it opens a new thread."
+                texts.render(
+                    "refusals.thread_locked",
+                    name=recipient.name,
+                    budget=budget,
+                    plain_name=recipient.name,
+                )
             )
         if opened is not None:
             self._events.publish("thread", opened)
@@ -270,20 +261,18 @@ class Board:
         with self._storage.transaction() as uow:
             peer = self._registry.resolve(uow, with_)
             if peer.id == closer.id:
-                raise InvalidRecipient("you have no line with yourself")
+                raise InvalidRecipient(texts.render("refusals.no_line_with_self"))
             line = uow.lines.get_pair_locked(closer.id, peer.id)
             if line is None or line.open_thread is None:
-                raise NoOpenThread(f"no open thread on your line with {peer.name!r}")
+                raise NoOpenThread(texts.render("refusals.no_open_thread", name=peer.name))
             thread = uow.threads.get(line.open_thread)
             if thread.opened_by != closer.id:
                 raise NotThreadInitiator(
-                    f"this thread was opened by {thread.opened_by_name!r}; only its "
-                    "initiator closes it — answer with a message instead",
+                    texts.render("refusals.not_thread_initiator", name=thread.opened_by_name)
                 )
             if line.state == "pending_gate":
                 raise GatePendingBlock(
-                    "a message on this line is awaiting the operator's gate decision; "
-                    "the thread cannot close until it is decided",
+                    texts.render("refusals.gate_pending.close"),
                     in_flight_msg=str(line.in_flight_msg),
                 )
             thread = uow.threads.end(thread.id, "closed")
@@ -300,7 +289,7 @@ class Board:
                 sender=None,
                 recipient=peer.id,
                 kind="system",
-                body=f"thread closed by {closer.name}",
+                body=texts.render("notices.thread.closed", closer=closer.name),
                 reply_to=None,
                 status="queued",
                 thread_id=thread.id,
@@ -415,10 +404,12 @@ class Board:
     def _notify_sender(
         self, uow: UnitOfWork, message: Message, verdict: str, note: str | None
     ) -> Message:
-        verb = "returned to you for revision" if verdict == "return" else "dropped (do not resend)"
-        body = f"Your message (seq {message.seq}) to {message.recipient_name} was {verb}."
+        outcome = "returned" if verdict == "return" else "dropped"
+        body = texts.render(
+            f"notices.gate.{outcome}", seq=message.seq, recipient=message.recipient_name
+        )
         if note:
-            body += f" Gate comment: {note}"
+            body += texts.render("notices.gate.comment", note=note)
         return uow.messages.insert(
             message_id=uuid4(),
             line_id=message.line_id,
@@ -491,7 +482,7 @@ class Board:
                 sender=None,
                 recipient=None,  # log-only board entry
                 kind="system",
-                body="line released to idle by the operator",
+                body=texts.render("notices.board.released"),
                 reply_to=line.in_flight_msg,
                 status="delivered",
                 thread_id=line.open_thread,
@@ -536,4 +527,4 @@ class Board:
 
     def _check_body(self, body: str) -> None:
         if len(body.encode()) > self._max_body_bytes:
-            raise BodyTooLarge(f"message body exceeds {self._max_body_bytes} bytes")
+            raise BodyTooLarge(texts.render("refusals.body_too_large", limit=self._max_body_bytes))

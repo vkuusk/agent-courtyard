@@ -1,0 +1,15 @@
+===== claude-code =====
+<courtyard-message from="hub" authority="hub-notice" kind="system" seq="0" id="00000000-0000-0000-0000-000000000000">
+A delivery check from the courtyard hub itself, at the start of a shift: the one hub
+message that asks you for something, a single tool call.
+────
+Delivery check: your operator has started a shift, and the courtyard hub is confirming that its messages reach this session. Confirm by calling the courtyard MCP tool `courtyard_ack` (it may appear as mcp__courtyard__courtyard_ack) with token "TOKEN123". That one tool call completes the check, and your operator sees the result on the board.
+</courtyard-message>
+
+===== pi =====
+<courtyard-message from="hub" authority="hub-notice" kind="system" seq="0" id="00000000-0000-0000-0000-000000000000">
+A delivery check from the courtyard hub itself, at the start of a shift: the one hub
+message that asks you for something, a single tool call.
+────
+Delivery check: your operator has started a shift, and the courtyard hub is confirming that its messages reach this session. Confirm by calling the courtyard tool `courtyard_ack` with token "TOKEN123". That one tool call completes the check, and your operator sees the result on the board.
+</courtyard-message>

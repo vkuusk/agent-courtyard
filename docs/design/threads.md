@@ -1,162 +1,160 @@
 # Threads: the quant of conversation
 
-Status: accepted and implemented in full (origin: feedback item 42; decision D34
-in `architecture-v1.md` §13): the construct itself (migration
-0019, open on send, the dedicated close tool, both adapters) and all of section
-5 — item 1 closure as protocol; item 2 per-thread budgets (an Admin setting,
-default 12 messages, replies always pass so a line never jams); item 3 shift
-end expires open threads; item 4 visible boundaries (thread dividers and counts
-in the WebUI, and the operator's close control in the pane header — the
-placement section 3 left open). Per-thread gate policy (the "later, possibly"
-of item 4) remains unbuilt. The one parked question ("verifiably done") is in
-`../planning/next-features-list.md`. Threads are a basic
-construct of inter-agent communication in the courtyard, so they get their own
-document; the team charter (`team-charter.md`) references thread policies but
-does not define threads.
+## 1. Why threads exist
 
-## 1. The problem
-
-Running the courtyard on real work showed that it is difficult to control how
-agents talk about one task: the thing the operator asked for. The hub's
-hierarchy today jumps from the line (unbounded, lives as long as the pairing)
-straight down to the message and the turn (too fine to carry a task). There is
-no tier in between, and the recent pain points are all symptoms of that gap:
-
-- Trailing questions that start unrelated exchanges (item 3.3): a boundary
-  violation the envelope could only word around.
-- The "no reply is owed" footer: closure expressed as prose because the protocol
-  has no close.
-- Two capable agents exchanging messages without end (item 29): an exchange
-  nobody can end, because "enough" is not a protocol event.
-- End shift expires unfinished messages (D24): what it is really doing is
-  closing what the day left open, stated at the wrong granularity.
-- The team-memory digests (item 39) lacked a natural unit to distill.
-
-One concept unifies all five.
+A line lives as long as its pair of participants and is unbounded; a message and
+its turn are too fine to carry a task. A thread is the tier between them: the
+unit that an ask opens, a budget bounds, an acceptance closes, the end of a shift
+expires, and the team's memory records.
 
 ## 2. What a thread means
 
 A thread means one bounded exchange about one ask: it starts with an
-independent question or request, and it ends when the sender is satisfied,
-meaning the answer is accepted or the task is verifiably done, or when the
-system closes it. Every message belongs to exactly one thread. A conversation
-on a line consists of threads, one after another.
+independent question or request, and it ends when its initiator accepts the
+answer, or when someone other than its participants ends it. Every message
+belongs to exactly one thread. A conversation on a line consists of threads, one
+after another.
+
+The initiator of most threads is an agent acting on a request its user typed in
+its terminal (`communication-protocols.md` section 2.2). One such request can
+cause several threads: the agent asks a helper, and the helper asks a further
+agent to be able to answer. Threads are serial on one line and run in parallel
+across lines.
 
 Vocabulary is kept rigid: **line** owns the outer tier (the standing pairing),
 **thread** owns the quant. Neither word is ever used for the other tier, in
 docs, schema or telemetry. (Some ecosystems use "thread" for the outer
 container; here it never leaks upward.)
 
-## 3. Decisions taken
+## 3. Thread features
 
-**Serial in v1: one open thread per line.** A line holds at most one open
-thread; a new independent ask begins only when the previous thread is closed.
-Reason: courtyard agents change infrastructure, and parallel threads on one
-line would need proof that the two exchanges are not touching the same piece of
-infrastructure. Serial threads also leave the proven turn machine untouched:
-turn-taking stays a per-line rule, and the thread adds lifecycle and
-bookkeeping on top. Concurrency stays adoptable later; a serial thread history
-migrates trivially.
+**One open thread per line.** A new independent ask begins only when the
+previous thread has ended. Reason: courtyard agents change infrastructure, and
+parallel threads on one line would need proof that the two exchanges do not
+touch the same piece of infrastructure. Turn-taking stays a per-line rule; the
+thread adds lifecycle and bookkeeping on top of it.
 
-**Threads get their own design document** (this one), as a basic construct of
-the communication model, not a feature of any other subsystem.
+**The sender declares; the hub never infers.** The sender knows its own intent,
+and reading intent out of message text is guesswork the hub avoids everywhere.
+A sender can declare two things, both as parameters of `courtyard_send`.
 
-**The sender declares thread boundaries; the hub never infers them.** A message
-that opens a new thread says so explicitly; any other message continues the
-line's open thread, or opens one when the line has none (the only possibility
-then). Reason: the sender knows its own intent, and inferring intent from
-message text is guesswork of a kind the hub avoids everywhere else. Under
-serial v1 the declaration has exactly one job: a declared new ask while a
-thread is still open is refused, the way turn violations are refused, instead
-of being silently filed into the open thread.
+- **`new_thread`: this message starts a new independent ask.** A message on a
+  line with no open thread opens one whether declared or not; any other message
+  continues the open thread. The declaration has one job: a declared new ask
+  while a thread is still open is refused, the way a turn violation is, instead
+  of being filed silently into the open thread.
+- **`serves`: the thread this ask serves.** Optional. Its value is the name of
+  the participant whose open thread with the sender the ask serves. A line holds
+  one open thread, so a name identifies it, and the model never handles an id.
+  Example: lab-manager asks inventory-agent for an address list;
+  inventory-agent needs a fact from a third agent to answer, and sends to it
+  with `serves: "lab-manager"`. When the sender has no open thread with the named
+  participant the send is refused: a declaration is never dropped silently, and
+  the hub never guesses which thread was meant.
 
-**Open rides the send call; close is a dedicated tool call.** The open
-declaration is a parameter on the send tool, because a new ask always is a
-message. The close is its own tool with no message and no note parameter,
-because an acceptance often carries no content: a tool call closes at zero
-message cost, and the hub gets a deterministic protocol event instead of
-parsing text. Reasons for no note field: an initiator with something
-substantive to say still has the whole message channel until the moment it
-closes (send the message, then close); lessons worth keeping are what the
-team-memory digest distills from the closed thread (item 39), and records
-beyond that are the operator's, outside the courtyard; and an optional
-free-text field invites exactly the closing pleasantries the tool call
-eliminates. The peer learns of the closure from a fixed system line rendered
-by the hub ("thread closed by X"): the closure wording of section 5 item 1,
-made literal. Implementation note: the turn machine must treat a close as
-resolving the line's reply obligation, so a closed thread never leaves a line
-stuck awaiting a reply.
+**Served threads form a tree.** The link belongs to the thread the ask opens; a
+message that continues an open thread leaves it as it is.
 
-**Operator threads are unbudgeted.** The analog of D9: the operator's lines
-are ungated, and their threads carry no budget (the per-thread exchange cap of
-section 5 item 2 never locks a thread the operator is in; a thread with the
-operator in it has its natural stopper). Serial still applies, and it costs
-the operator nothing: with one open thread per line, a send with no thread
-open necessarily opens one, so the operator never declares anything; starting
-a new ask is close, then send.
+- A tree starts at a thread that serves nothing: an agent's ask on behalf of its
+  user, or an ask from the operator. A user's request never reaches the hub, so
+  an agent that asks two helpers for one request starts two trees, and the hub
+  cannot join them.
+- The link is used three ways. When the answer arrives, the hub tells the asker
+  whom the result is for, or that the served thread has ended
+  (`communication-protocols.md` section 6.3). On the WebUI a thread's divider
+  names the thread it serves and the threads serving it, each a jump to that
+  line. A case file names the thread its thread served (`hub-memory.md`).
+- Ending a thread ends no other thread: threads serving it stay open. A tree
+  carries no budget of its own; every thread has its budget, and the turn rule
+  refuses an ask that comes back around to a line that is already waiting. The
+  operator's team-wide brake is the control for a tree that grows the wrong way.
 
-**The operator closes through a control in the conversation pane.** Agents
-call the close tool; the operator's control invokes the same hub operation,
-rendered only when the selected chat has an open thread the operator
-initiated. Not a typed command: the composer carries message text only, and
-parsing "/done" out of it would be the text-inference this design rejects;
-every protocol action the operator takes today is a click (verdicts, release,
-archive), and a typed command would be a new idiom. Exact placement at
-implementation time (pane header, or the open thread's group boundary).
+**Close is a bare tool call.** `courtyard_close_thread` takes the peer's name
+and nothing else: no message and no note. An acceptance often carries no
+content, so the close costs no message, and the hub gets a deterministic
+protocol event instead of parsing text. There is no note field because an
+initiator with something left to say has the whole message channel until it
+closes (send, then close), because lessons worth keeping belong to the team's
+memory, and because an optional text field invites the closing pleasantries the
+tool call removes. Only the initiator closes. The peer learns of the close from a
+fixed line rendered by the hub, "thread closed by X". A close resolves the
+line's reply obligation, so a closed thread never leaves a line waiting.
 
-**Threads start at the migration; no backfill.** Messages older than the
-migration stay thread-less in history. Reconstructing threads from old
-messages would mean the hub inferring boundaries from text, which this design
-rejects (sender declares).
+**Threads with the operator carry no budget.** The operator's lines are never
+gated, and the budget never locks a thread the operator takes part in: a human
+in the exchange is its natural stopper. One open thread per line still applies
+and costs the operator nothing: a send on a line with no open thread opens one,
+so the operator declares nothing, and starting a new ask is close, then send.
+
+**Only a message from the operator keeps a thread open on the operator's
+line.** A message an agent sends to the operator on its own initiative awaits no
+reply, and the thread it opens ends at once, as `closed`: a report is a whole
+exchange. The send result tells the agent that the message was received, that no
+answer is to be expected, and that the operator will write if needed. When the
+operator writes, that message opens a thread of the operator's own, which awaits
+the agent's answer and which the operator closes. An agent's message inside a
+thread the operator opened (its answer, or a later addition) stays in that
+thread. Reason: the operator reads reports and rarely answers them on the board;
+a thread waiting for that answer could be closed by nobody, and every later
+report would land in it.
+
+**The operator closes through a control in the conversation pane.** The control
+sits in the pane header and invokes the same hub operation as the agents' close
+tool. It shows when the selected line has an open thread the operator opened,
+which is every thread that stays open on the operator's lines. It is not a typed
+command: the composer carries message text only, parsing "/done" out of it
+would be the text inference this design rejects, and every other protocol action
+of the operator is a click (verdicts, release, archive).
+
+**Messages older than threads belong to none.** Rebuilding threads from old
+messages would mean inferring boundaries from text.
 
 ## 4. Lifecycle
-
-States, and who moves a thread into them:
 
 | State | Meaning | Moved by |
 |---|---|---|
 | `open` | an ask is in flight or under clarification | the first message of a new exchange |
-| `closed` | the initiator is satisfied; the answer was accepted | the initiator |
-| `expired` | the shift ended with the thread still open | end shift (extends D24) |
-| `locked` | the system ended it: budget exhausted or stall | the hub |
+| `closed` | the initiator accepted the answer | the initiator; the hub, at once, for an agent's report to the operator |
+| `expired` | the shift ended with the thread still open | end shift |
+| `locked` | someone other than the participants ended it | the hub, when the budget is spent; the operator, by releasing the line |
 
-`closed` is the healthy ending. `expired` keeps its existing meaning from D24:
-nothing is deleted, history keeps the thread with its state. `locked` is
-distinct from both because it records that an authority other than the
-participants ended the exchange; that difference matters when reading history
-later.
+`closed` is the healthy ending. `expired` and `locked` delete nothing: history
+keeps the thread with its state. `locked` is distinct from both because it
+records that an authority other than the participants ended the exchange; that
+difference matters when reading history later. A release is such an ending: the
+operator abandons the exchange, and leaving its thread open would file every
+later message on the line into it.
 
-## 5. What the hub can enforce
+The participants are told of every ending they did not make: the peer of a
+close, both sides of a budget lock, a release and an expiry, each as a hub
+notice.
 
-Candidates, each classified as enforced or advisory when it is implemented
-(the same rule as the charter's: a rule that matters is enforced by the hub,
-the agent-context copy exists for clean escalation):
+## 5. What the hub enforces
 
-1. **Closure as protocol, not prose.** The initiator closes the thread
-   ("answer accepted") through a real signal on the reply path; the envelope's
-   closing wording becomes a rendering of a state instead of a request.
-2. **Per-thread budgets.** A maximum number of exchanges per thread; reaching
-   it locks the thread and tells both sides, the way turn violations are
-   refused today. This is the structural answer to item 29: turn-taking is
-   backpressure per message, the thread budget is backpressure per task.
-3. **Shift end closes threads.** End shift marks open threads `expired`,
-   subsuming the message-level expiry of D24.
-4. **Visible boundaries.** The conversation pane groups messages by thread; the
-   board can say "3 threads today, 1 open" instead of an undifferentiated
-   scroll. Later, possibly gate policy per thread (supervise thread openings,
-   auto-pass inside one).
+1. **Closure as protocol, not prose.** The initiator closes the thread through
+   a real signal; the closing wording of the envelope renders a state instead of
+   making a request.
+2. **Per-thread budgets.** A thread between two agents holds at most a set
+   number of messages (an Admin setting, default 12, 0 for none). A send that
+   would grow the thread past it is refused, the thread is locked and both sides
+   are told. An answer always passes, so a line never jams on an obligation it
+   cannot discharge. Turn-taking is backpressure per message; the budget is
+   backpressure per task.
+3. **The end of a shift expires open threads**, together with the unanswered
+   and gate-held messages on their lines.
+4. **Visible boundaries.** The conversation pane groups messages by thread,
+   with a divider per thread; the board shows each line's thread count and
+   whether one is open.
 
 ## 6. Relations to other designs
 
+- **Communication protocols** (`communication-protocols.md`): how messages
+  move around threads: the footer that carries the close instruction, the
+  owed-reply statement, the send results, turns and the gate.
 - **Team charter** (`team-charter.md`): thread policies (budget, who may
   close) are rules of engagement and belong in the charter; the construct
   itself is defined here.
-- **Team memory** (item 39): a closed thread is the unit a digest distills:
-  one ask, its resolution, done.
-- **Turn machine** (§5): unchanged in v1; threads sit above it.
-
-## 7. Open questions
-
-1. **"Verifiably done".** Out of v1: initiator-accepted is the v1 close;
-   verifiable completion needs typed artifacts, which are out of scope
-   (see `team-charter.md` §4).
+- **Team memory** (`hub-memory.md`): a closed thread is the unit a case file
+  records: one ask, its resolution, done.
+- **Turn machine** (`architecture-v1.md` §5.4): turn-taking is per line; threads
+  sit above it.
