@@ -1271,6 +1271,11 @@ Checkpoints printed: the answer's footer when the request was typed in the termi
    sends you the answer on the board with `courtyard_send`.
 3. Admin, Message envelope: the two answer variants show the statement; the
    membership block and the instructions name "the user" and "the operator" apart.
+4. In a pi agent's terminal, a courtyard card shows the message body and the line
+   "(ctrl+o shows the full envelope ...)"; ctrl+o shows the preamble and the footer.
+5. Ask an agent to message a peer by a wrong name (for example `inventory` for
+   `inventory-agent`): the refusal names the closest agents, and the agent retries
+   without a `courtyard_peers` call.
 
 
 ---

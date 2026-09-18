@@ -36,6 +36,19 @@ const CONTEXT_FALLBACK = __COURTYARD_CONTEXT__;
 // (courtyard/texts): used when the hub does not answer at session start.
 const TEXTS_FALLBACK = __COURTYARD_TEXTS__;
 
+// The collapsed card (item 45): the body of the envelope, not its first twelve lines.
+// A courtyard envelope is a preamble, a rule, the body, a rule and a footer; cut at a
+// line count, the card ended mid-footer and hid the one line that decided the model's
+// behaviour. The model always receives the full envelope; this is the operator's view.
+const CARD_BODY_LINES = 12;
+export function collapsedView(content) {
+  const parts = String(content).split("────\n");
+  if (parts.length < 2) return content.split("\n").slice(0, CARD_BODY_LINES).join("\n");
+  const lines = parts[1].replace(/\n?<\/courtyard-message>\s*$/, "").trimEnd().split("\n");
+  const body = lines.slice(0, CARD_BODY_LINES).join("\n") + (lines.length > CARD_BODY_LINES ? "\n…" : "");
+  return `${body}\n(ctrl+o shows the full envelope: who is speaking, and what to do with it)`;
+}
+
 export default function (pi) {
   const channelToken = randomBytes(24).toString("base64url");
   let server = null;
@@ -326,9 +339,7 @@ export default function (pi) {
           "success",
           `✉ courtyard · from ${details.from || "hub"} · ${details.kind || "message"}`,
         );
-        const body = expanded
-          ? message.content
-          : message.content.split("\n").slice(0, 12).join("\n");
+        const body = expanded ? message.content : collapsedView(message.content);
         const box = new Box(outputPad, 1, (t) => theme.bg("customMessageBg", t));
         box.addChild(new Text(`${head}\n${body}`, 0, 0));
         return box;

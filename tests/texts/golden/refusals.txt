@@ -1,5 +1,5 @@
 ===== unknown recipient =====
-The courtyard hub refused: [unknown_agent] no agent named 'nobody'
+The courtyard hub refused: [unknown_agent] no agent named 'nobody'; the agents on the board: alice, bob, carol, operator
 
 ===== send to yourself =====
 The courtyard hub refused: [invalid_recipient] cannot send a message to yourself

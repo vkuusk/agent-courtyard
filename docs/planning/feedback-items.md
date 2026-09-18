@@ -1452,8 +1452,9 @@ paragraph; `webui/js/conversation.js` (close control); `adapters/pi/extension.ts
 **Status.** decided 2026-09-17 → designed in `docs/design/communication-protocols.md`
 and `docs/design/threads.md`; nothing built yet. R1 became the owed-reply statement
 (with the optional `serves` link), R2 and R3 are as designed there, and an agent's
-report to the operator now ends its own thread at once. R4 (the pi collapsed view) and
-R5 (`unknown_agent` names the closest agents) are still open.
+report to the operator now ends its own thread at once. R4 and R5 done 2026-09-18: the
+pi card shows the envelope's body and a ctrl+o hint when collapsed (`collapsedView` in the
+extension), and `unknown_agent` names the closest registered names, or the whole board.
 
 To build, in this order (step 1 done 2026-09-17: `src/courtyard/texts`, goldens in
 `tests/texts/golden`, tool results worded by the hub, both adapters fetching their texts;

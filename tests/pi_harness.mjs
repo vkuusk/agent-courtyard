@@ -8,7 +8,7 @@
 // {"cmd": "shutdown"} fires session_shutdown and exits.
 import { createInterface } from "node:readline";
 
-const { default: factory } = await import(`file://${process.env.COURTYARD_EXT}`);
+const { default: factory, collapsedView } = await import(`file://${process.env.COURTYARD_EXT}`);
 
 const handlers = new Map();
 const tools = new Map();
@@ -77,6 +77,10 @@ for await (const line of rl) {
     if (cmd.summarized) entries.length = 0; // the summary is not a custom message
     await handlers.get("session_compact")?.({}, ctx);
     out({ event: "compacted" });
+    continue;
+  }
+  if (cmd.cmd === "collapse") {
+    out({ event: "collapsed", text: collapsedView(cmd.content) });
     continue;
   }
   if (cmd.cmd === "shutdown") {

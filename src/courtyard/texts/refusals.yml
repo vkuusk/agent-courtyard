@@ -1,6 +1,9 @@
 # Refusals an agent's tool call can meet. The model reads them as "[code] message".
 
-unknown_agent: no agent named {name!r}
+unknown_agent:
+  close: 'no agent named {name!r}; the closest names on the board: {names}'
+  board: 'no agent named {name!r}; the agents on the board: {names}'
+  nobody: no agent named {name!r}, and nobody else is registered
 agent_gone: agent {name!r} was removed from the courtyard
 send_to_self: cannot send a message to yourself
 no_line_with_self: you have no line with yourself
