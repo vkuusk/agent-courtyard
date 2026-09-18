@@ -1,0 +1,26 @@
+===== alice and bob =====
+to alice: Your message (seq 1) to bob was returned to you for revision. Gate comment: too vague
+to alice: Your message (seq 3) to bob was dropped (do not resend).
+to bob: thread closed by alice
+to alice: thread locked: its exchange budget (2 messages) is spent without closure — the courtyard ended this exchange. Do not restate the same ask in a new thread; if it truly needs more, involve your operator.
+to bob: thread locked: its exchange budget (2 messages) is spent without closure — the courtyard ended this exchange. Do not restate the same ask in a new thread; if it truly needs more, involve your operator.
+to the board: line released to idle by the operator
+to alice: The operator released your line with bob: the message awaiting a reply will not be answered, and the open thread ended. Nothing is owed on this line now; the next ask opens a new thread.
+to bob: The operator released your line with alice: the message awaiting a reply will not be answered, and the open thread ended. Nothing is owed on this line now; the next ask opens a new thread.
+to the board: the message awaiting a reply expired at end of shift
+to alice: The shift ended with your line with bob unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.
+to bob: The shift ended with your line with alice unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.
+to the board: the open thread expired at end of shift
+
+===== alice and carol =====
+to the board: the message held at the gate expired at end of shift
+to alice: The shift ended with your line with carol unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.
+to carol: The shift ended with your line with alice unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.
+to the board: the open thread expired at end of shift
+
+===== alice and the operator =====
+to alice: Your note to the team's memory ('a lesson') was returned to you. Operator's comment: say which module
+to alice: Your note to the team's memory ('a lesson') was dropped (do not resend it).
+
+===== alice and bob, after an archive =====
+to the board: history archived by the operator (20 messages)

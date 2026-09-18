@@ -19,15 +19,15 @@ import sys
 
 import httpx
 
-from courtyard.common.client import DEFAULT_HUB_URL, HubError
-from courtyard.common.models import AttachSummary
-from courtyard.dummy.core import (
+from courtyard.adapters.dummy.core import (
     Behavior,
     Dummy,
     EchoBehavior,
     ManualBehavior,
     ScriptBehavior,
 )
+from courtyard.common.client import DEFAULT_HUB_URL, HubError
+from courtyard.common.models import AttachSummary
 
 HELP = """commands:
   peer: message         send a message to `peer` (bare text: reply to the last sender)

@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from courtyard.common import session_context
+from courtyard.common import adapter_texts, session_context
 from courtyard.common.models import Agent, AgentColor, AgentType, Message, PeersView
 from courtyard.hub.api.deps import get_board, get_registry, get_teams, require_agent
 from courtyard.hub.core import install as install_core
@@ -162,6 +162,18 @@ def session_context_text(
     hub_url = str(request.base_url).rstrip("/")
     text = session_context.render(agent.name, hub_url, team.name if team else None, agent.type)
     return {"text": text}
+
+
+@router.get("/{name_or_id}/texts")
+def adapter_texts_bundle(
+    name_or_id: str, registry: Annotated[Registry, Depends(get_registry)]
+) -> dict[str, Any]:
+    """What the agent's adapter shows its model besides deliveries: the tool definitions
+    in its host's shape, the standing instructions, and the texts the adapter words on
+    its own side (design communication-protocols.md section 8). Fetched at session
+    start, so a wording change reaches an agent without rewriting its files. Admin read
+    (D3), like the session context."""
+    return adapter_texts.bundle(registry.get(name_or_id).type)
 
 
 @router.get("/{name_or_id}/token")

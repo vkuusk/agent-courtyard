@@ -91,7 +91,7 @@ class AgentRepo(Protocol):
 
 
 class LineRepo(Protocol):
-    def get_or_create_locked(self, a: UUID, b: UUID, mode: str = "supervised") -> Line:
+    def get_or_create_locked(self, a: UUID, b: UUID, mode: str = "auto_pass") -> Line:
         """Return the line for the (unordered) pair, row-locked; create it if missing.
         `mode` applies only on creation (7c: the operator's Admin default); an existing
         line keeps its own dial."""
@@ -198,7 +198,9 @@ class ThreadRepo(Protocol):
     """Threads (design threads.md, D34). Callers hold the line row lock for every
     mutation — thread state and the line's `open_thread` pointer move together."""
 
-    def insert(self, *, thread_id: UUID, line_id: UUID, opened_by: UUID) -> Thread: ...
+    def insert(
+        self, *, thread_id: UUID, line_id: UUID, opened_by: UUID, serves: UUID | None = None
+    ) -> Thread: ...
 
     def get(self, thread_id: UUID) -> Thread | None: ...
 

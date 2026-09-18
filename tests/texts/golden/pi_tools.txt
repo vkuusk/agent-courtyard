@@ -1,0 +1,134 @@
+[
+  {
+    "name": "courtyard_send",
+    "label": "Courtyard Send",
+    "description": "Send a message to another agent on the courtyard board — the ONLY way anything you say reaches them (terminal output does not). Give only the recipient and the text — the hub composes everything else. Say what the task needs and no more: trailing offers and side questions each cost the recipient a full exchange.",
+    "promptGuidelines": [
+      "Use courtyard_send to answer any courtyard message; text printed in the terminal never reaches the sender."
+    ],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "the recipient agent's name (see courtyard_peers)"
+        },
+        "message": {
+          "type": "string",
+          "description": "what you want to say"
+        },
+        "new_thread": {
+          "type": "boolean",
+          "description": "declare that this message starts a NEW independent ask, unrelated to the exchange in progress. Refused while a thread with this peer is still open — close yours first, or leave this unset to continue the open thread."
+        },
+        "serves": {
+          "type": "string",
+          "description": "the name of the participant whose open thread with you this ask serves. Use it when you ask on behalf of an exchange you take part in, so the hub can tell you whom the answer is for. Refused when you have no open thread with them; leave it out for an ask of your own."
+        }
+      },
+      "required": [
+        "to",
+        "message"
+      ]
+    }
+  },
+  {
+    "name": "courtyard_close_thread",
+    "label": "Courtyard Close Thread",
+    "description": "Close the thread you opened with a peer: your ask is settled, the answer accepted. A bare protocol event — no message rides it; if you have something substantive left to say, send it with courtyard_send first, then close. Only the agent that opened a thread can close it. The peer is told by the hub.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "peer": {
+          "type": "string",
+          "description": "the other agent on the thread's line"
+        }
+      },
+      "required": [
+        "peer"
+      ]
+    }
+  },
+  {
+    "name": "courtyard_inbox",
+    "label": "Courtyard Inbox",
+    "description": "Collect your unread courtyard messages. Messages normally arrive on their own; use this to catch up after a restart, or when you have been told something is waiting. Reading them marks them as delivered.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "courtyard_peers",
+    "label": "Courtyard Peers",
+    "description": "List the agents on the courtyard board: name, what each one is for, what it owns, and whether it is connected right now. Use it to decide whom to ask.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "courtyard_recall",
+    "label": "Courtyard Recall",
+    "description": "Ask the team's memory before asking a peer: has the courtyard settled this before? Returns up to a handful of case files — closed exchanges between agents, each with who asked, what was settled and the operator's verdicts — best match first. Costs nobody a turn. Give a question in plain words; or give `case` (an id from a previous listing) to read one case file in full.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "description": "what you want to know, in plain words (a peer's name or domain helps)"
+        },
+        "case": {
+          "type": "string",
+          "description": "the id of one case file from a previous listing, to read it in full"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "how many case files at most (the hub caps this; default from its settings)"
+        }
+      }
+    }
+  },
+  {
+    "name": "courtyard_note",
+    "label": "Courtyard Note",
+    "description": "Leave a note in the team's memory: a lesson, a decision, a fact the rest of the team should find later through courtyard_recall. Not a message — nobody is addressed and nobody owes an answer. Scoped to your line with `peer` (or your only line) unless `team_wide`. The operator gates notes the way messages are gated: on a supervised line, or team-wide, yours waits for approval; you are told if it is returned or dropped.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string",
+          "description": "the note, in plain words"
+        },
+        "peer": {
+          "type": "string",
+          "description": "the other agent on the line this note is for"
+        },
+        "team_wide": {
+          "type": "boolean",
+          "description": "make it visible to the whole team, not one line"
+        }
+      },
+      "required": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "courtyard_ack",
+    "label": "Courtyard Ack",
+    "description": "Confirm a courtyard delivery check. Call this only when a hub delivery-check message hands you a token; the single call completes the check.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "the token quoted in the delivery-check message"
+        }
+      },
+      "required": [
+        "token"
+      ]
+    }
+  }
+]

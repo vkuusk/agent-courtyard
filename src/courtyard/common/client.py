@@ -42,11 +42,20 @@ class HubError(Exception):
     """A machine-readable hub error, surfaced verbatim (turn violations are meant to be
     read by LLMs — don't wrap or soften them)."""
 
-    def __init__(self, http_status: int, code: str, message: str, extra: dict | None = None):
+    def __init__(
+        self,
+        http_status: int,
+        code: str,
+        message: str,
+        extra: dict | None = None,
+        rendered: str | None = None,
+    ):
         super().__init__(message)
         self.http_status = http_status
         self.code = code
         self.extra = extra or {}
+        # the refusal as the hub words it for a model; None from anything but the hub
+        self.rendered = rendered
 
     def __str__(self) -> str:
         return f"[{self.code}] {super().__str__()}"
@@ -78,9 +87,11 @@ class HubClient:
             error = resp.json()["error"]
         except (json.JSONDecodeError, KeyError):
             raise HubError(resp.status_code, "http_error", resp.text) from None
-        known = {"code", "message"}
+        known = {"code", "message", "rendered"}
         extra = {k: v for k, v in error.items() if k not in known}
-        raise HubError(resp.status_code, error["code"], error["message"], extra)
+        raise HubError(
+            resp.status_code, error["code"], error["message"], extra, error.get("rendered")
+        )
 
     # -- the adapter contract --------------------------------------------------------
 
@@ -96,12 +107,21 @@ class HubClient:
 
     def ack(self, token: str) -> bool:
         """Return a delivery-check token (item 34). False = no open check matched."""
-        return bool(self._call("POST", f"/api/agents/{self.name}/ack", {"token": token})["ok"])
+        return self.ack_delivery(token)[0]
 
-    def send(self, to: str, body: str, new_thread: bool = False) -> Message:
+    def ack_delivery(self, token: str) -> tuple[bool, str | None]:
+        """The same call, with the hub's wording of the outcome for the model."""
+        data = self._call("POST", f"/api/agents/{self.name}/ack", {"token": token})
+        return bool(data["ok"]), data.get("result")
+
+    def send(
+        self, to: str, body: str, new_thread: bool = False, serves: str | None = None
+    ) -> Message:
         return Message.model_validate(
             self._call(
-                "POST", "/api/lines/send", {"to": to, "body": body, "new_thread": new_thread}
+                "POST",
+                "/api/lines/send",
+                {"to": to, "body": body, "new_thread": new_thread, "serves": serves},
             )
         )
 

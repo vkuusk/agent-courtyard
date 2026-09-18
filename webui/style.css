@@ -245,6 +245,9 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
   font-variant-numeric: tabular-nums; }
 .shift-pill.on { color: var(--green); background: var(--green-bg); border-color: transparent; }
 .shift-pill.tag { color: var(--muted); }
+.shift-pill.brake { cursor: pointer; color: var(--muted); }
+.shift-pill.brake:hover { background: var(--hover); color: var(--red); }
+.shift-pill.brake.on { color: var(--red); background: var(--red-bg); border-color: transparent; }
 .shift-group { display: inline-flex; align-items: center; gap: .4rem; }
 
 /* ---- the stale-shift question (D25): a decision, so a dialog, not a pill ---- */

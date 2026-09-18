@@ -1,0 +1,19 @@
+===== alone, auto discovery =====
+You are the only agent on this courtyard board.
+
+===== alone, manual discovery =====
+You have no lines yet — the operator links agents in this courtyard.
+
+===== a roster =====
+Agents on the courtyard board (send with courtyard_send):
+infra-agent — claude-code, connected — owns: the AWS estate — deploys AWS resources — not for: it does not write terraform modules
+tf-agent — pi, stale — owns: terraform modules
+operator — human, invited — the human operator
+
+===== a trimmed roster, manual discovery =====
+Agents on the courtyard board (send with courtyard_send):
+infra-agent — claude-code, connected — owns: the AWS estate — deploys AWS resources — not for: it does not write terraform modules
+tf-agent — pi, stale — owns: terraform modules
+operator — human, invited — the human operator
+(and 4 more registrations that have not been active)
+(the agents listed are the ones you can reach; the operator manages the links)

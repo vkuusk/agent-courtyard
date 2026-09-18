@@ -1,0 +1,26 @@
+# Hub notices delivered to an agent, and the board entries no agent receives
+# (communication-protocols.md section 3.1).
+
+gate:
+  returned: Your message (seq {seq}) to {recipient} was returned to you for revision.
+  dropped: Your message (seq {seq}) to {recipient} was dropped (do not resend).
+  comment: ' Gate comment: {note}'
+thread:
+  closed: thread closed by {closer}
+  locked: 'thread locked: its exchange budget ({budget} messages) is spent without closure — the courtyard ended this exchange. Do not restate the same ask in a new thread; if it truly needs more, involve your operator.'
+note:
+  returned: Your note to the team's memory ({excerpt!r}) was returned to you.
+  dropped: Your note to the team's memory ({excerpt!r}) was dropped (do not resend it).
+  comment: ' Operator''s comment: {note}'
+line:
+  released: 'The operator released your line with {peer}: the message awaiting a reply will not be answered, and the open thread ended. Nothing is owed on this line now; the next ask opens a new thread.'
+  expired: 'The shift ended with your line with {peer} unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.'
+  expired_thread: 'The shift ended: the open thread on your line with {peer} expired. The next ask opens a new thread.'
+board:
+  released: line released to idle by the operator
+  expired_held: the message held at the gate expired at end of shift
+  expired_awaiting: the message awaiting a reply expired at end of shift
+  expired_thread: the open thread expired at end of shift
+  archived: history archived by the operator ({count} message{plural})
+  redelivered: the message (seq {seq}) was delivered to a previous session of {agent} and never answered — redelivered
+  channel_replaced: agent {agent!r} attached a new channel while its previous one was still connected — two sessions may be claiming this identity

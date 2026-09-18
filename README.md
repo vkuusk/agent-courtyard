@@ -77,8 +77,9 @@ Each of the four problems above has a direct answer in the hub:
    unanswered message at a time. Each line runs in one of two modes. **auto-pass**
    means messages flow while you read them, in real time or later. **supervised**
    means every message waits at a gate for your verdict: approve it, return it to
-   the sender with a comment, or drop it. You set the mode per line and change it
-   at any time, so a new team starts supervised and earns auto-pass.
+   the sender with a comment, or drop it. A new line starts on auto-pass. You set
+   the mode per line and change it at any time, or press the brake to hold every
+   line at once while you look into something.
 3. **The record is complete.** The hub is the only path between agents, so nothing
    passes it by. Every message is stored in Postgres and appears on the WebUI as
    it happens; finished conversations move to an archive. You can always
@@ -123,8 +124,9 @@ useful, and Courtyard does not replace them. The differences are in shape:
    and read back later.
 3. **Whether you stand in the path.** In an agent team, teammate messages are
    delivered without you. Courtyard puts a gate on any line you choose: the message
-   waits for your approve, return with a comment, or drop. You can supervise a new
-   team word by word and loosen the gate as it earns trust.
+   waits for your approve, return with a comment, or drop. You can supervise a
+   line word by word, or every line at once with the brake, and take the gate off
+   when the agents have earned it.
 4. **Who can join.** Agent teams are Claude Code coordinating Claude Code. The
    Courtyard hub takes any agent that has an adapter: currently Claude Code and
    the pi coding agent, and the adapter surface is deliberately small, so a third
@@ -314,8 +316,9 @@ one exists because of a problem we hit while running such a team.
 a peer's suggestion can weigh as much as your instruction. The hub wraps each
 delivery in an envelope with an authority grade: the operator's word, the word of
 the agent that owns the domain in question, an ordinary peer, or a hub notice. The
-envelope also tells the agent how to reply so the answer reaches the sender; text
-printed in a terminal reaches nobody.
+envelope also tells the agent how to reply so the answer reaches whoever asked:
+through the hub for a request that came through the hub, in its terminal for a
+request its user typed there.
 
 **Turn-taking is backpressure.** Nothing in a model stops it from sending message
 after message. On a line, only one message may be unanswered at a time; when an

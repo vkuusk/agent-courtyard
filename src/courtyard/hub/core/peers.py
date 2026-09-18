@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from courtyard import texts
 from courtyard.common.models import Agent, PeerInfo, PeersView
 
 PEER_LIMIT = 25  # a real courtyard holds a handful of agents; this only trims dev clutter
@@ -50,22 +51,23 @@ def peers_view(agents: list[Agent], me: Agent, linked: set[UUID] | None = None) 
 
 def render(peers: list[PeerInfo], hidden: int, managed: bool = False) -> str:
     if not peers:
-        if managed:
-            return "You have no lines yet — the operator links agents in this courtyard."
-        return "You are the only agent on this courtyard board."
-    lines = [
-        f"{p.name} — {p.type}, {p.status}"
-        + (f" — owns: {p.sme_domain}" if p.sme_domain else "")
-        + (f" — {p.description}" if p.description else "")
-        # D33: whom NOT to ask, at the one moment it helps — choosing whom to ask.
-        # Anti-scope prose comes from a wrapped .md file; collapse it to its one line.
-        + (f" — not for: {' '.join(p.anti_scope.split())}" if p.anti_scope else "")
-        for p in peers
-    ]
+        return texts.render("listings.peers.alone_managed" if managed else "listings.peers.alone")
+    lines = []
+    for p in peers:
+        line = texts.render("listings.peers.entry", name=p.name, type=p.type, status=p.status)
+        if p.sme_domain:
+            line += texts.render("listings.peers.owns", domain=p.sme_domain)
+        if p.description:
+            line += texts.render("listings.peers.description", description=p.description)
+        if p.anti_scope:
+            # D33: whom NOT to ask, at the one moment it helps — choosing whom to ask.
+            # Anti-scope prose comes from a wrapped .md file; collapse it to its one line.
+            line += texts.render(
+                "listings.peers.not_for", anti_scope=" ".join(p.anti_scope.split())
+            )
+        lines.append(line)
     if hidden:
-        lines.append(f"(and {hidden} more registrations that have not been active)")
+        lines.append(texts.render("listings.peers.hidden", count=hidden))
     if managed:
-        lines.append(
-            "(the agents listed are the ones you can reach; the operator manages the links)"
-        )
-    return "Agents on the courtyard board (send with courtyard_send):\n" + "\n".join(lines)
+        lines.append(texts.render("listings.peers.managed"))
+    return texts.render("listings.peers.header") + "\n" + "\n".join(lines)

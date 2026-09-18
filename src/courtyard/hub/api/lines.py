@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from courtyard.common.models import Agent, Archive, Line, LineMode, Message, Thread
 from courtyard.hub.api.deps import get_archiver, get_board, require_agent
+from courtyard.hub.core import results
 from courtyard.hub.core.archive import Archiver
 from courtyard.hub.core.board import Board
 
@@ -20,6 +21,7 @@ class SendRequest(BaseModel):
     to: str  # recipient name or id; the sender is the token owner
     body: str
     new_thread: bool = False  # the sender's boundary declaration (D34)
+    serves: str | None = None  # the participant whose open thread this ask serves (threads.md §3)
 
 
 class CloseThreadRequest(BaseModel):
@@ -40,13 +42,18 @@ class LinkRequest(BaseModel):
     b: str
 
 
+class BrakeRequest(BaseModel):
+    on: bool
+
+
 @router.post("/send", status_code=201)
 def send(
     body: SendRequest,
     sender: Annotated[Agent, Depends(require_agent)],
     board: Annotated[Board, Depends(get_board)],
 ) -> Message:
-    return board.send(sender, body.to, body.body, body.new_thread)
+    message = board.send(sender, body.to, body.body, body.new_thread, body.serves)
+    return message.model_copy(update={"result": results.send(message, body.to)})
 
 
 @router.post("/close-thread")
@@ -57,7 +64,16 @@ def close_thread(
 ) -> Thread:
     """Close the open thread on the closer's line with a peer (D34): the initiator
     declares the ask settled. No message, no note — the close is the whole event."""
-    return board.close_thread(closer, body.peer)
+    thread = board.close_thread(closer, body.peer)
+    return thread.model_copy(update={"result": results.close(body.peer)})
+
+
+@router.post("/brake")
+def brake(body: BrakeRequest, board: Annotated[Board, Depends(get_board)]) -> dict:
+    """The team-wide brake (communication-protocols.md 7.4): every agent line to
+    supervised and back. Returns the lines whose mode changed; the flag itself is read
+    from /api/settings."""
+    return {"on": body.on, "changed": board.brake(body.on)}
 
 
 @router.post("", status_code=201)

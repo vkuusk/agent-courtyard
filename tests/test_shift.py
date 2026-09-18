@@ -729,7 +729,8 @@ class TestShiftApi:
             "team_mode": "on_shift",
             "terminal_app": "Terminal",
             "custom_terminals": [],
-            "default_line_mode": "supervised",
+            "default_line_mode": "supervised",  # the test hub's; the product's is auto_pass
+            "brake": False,
             "discovery": "auto",
             "thread_budget": 12,
             "recall_limit": 5,

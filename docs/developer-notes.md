@@ -58,6 +58,31 @@ alongside a green `make check` — not a follow-up.
 **Automated tests remain the proof of logic; the runbook is for seeing it work.** Both, not
 either. The runbook also doubles as living documentation of how each feature behaves.
 
+## Texts a model reads live in `courtyard/texts`
+
+Every text a model reads (envelope parts, hub notices, refusals, tool results, the
+membership block, the instructions, the pi skill, tool definitions) is a named template
+in `src/courtyard/texts/*.yml`, rendered with `texts.render(key, **variables)`. Code
+decides which text applies; it holds no wording of its own
+(design: [`design/communication-protocols.md`](design/communication-protocols.md)
+section 8).
+
+- To change a wording: edit the YAML, then run
+  `COURTYARD_UPDATE_GOLDEN=1 uv run pytest tests/texts -q` and review the diff of
+  `tests/texts/golden/`. That diff is the change a reviewer reads.
+- To add a text: add the key to the YAML of its family and render it from the code;
+  `tests/texts/test_texts_catalog.py` fails on a key the code asks for that does not
+  exist, on a text nothing renders, and `render` itself fails on a missing or unused
+  variable.
+- A golden file that differs without a YAML edit means the code changed what it renders:
+  find out why before regenerating.
+- How a new wording reaches a running team: the hub renders envelopes, notices, refusals
+  and tool results itself, so they change when the hub restarts. Tool definitions, the
+  Claude Code instructions and the adapters' own texts are fetched by each adapter at
+  its next session start (`GET /api/agents/{name}/texts`), with the packaged copy as the
+  fallback. The pi skill is a file in the agent's workdir: it changes when the agent's
+  files are written again (Agents page, sync dir).
+
 ## The WebUI is served with `Cache-Control: no-cache`
 
 `webui/` is plain files that change with every edit, and the browser loads them as ES

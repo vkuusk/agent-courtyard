@@ -199,20 +199,30 @@ bottom, and press Enter:
 
 What happens, and what you see:
 
+Before you press Enter, press **Brake** beside the shift pill: a new line between two
+agents starts on **auto-pass**, and the brake puts every agent line behind the gate so
+you can watch this first exchange word by word.
+
 1. Your message arrives in main-admin's terminal as a conversation turn, marked as coming
    from the operator. Your own lines are never gated.
 2. main-admin looks up who is on the team (its `courtyard_peers` tool) and sends
-   infra-claude a message. A line between two agents is **supervised** by default, so the
-   message stops at the gate: a new line `main-admin ↔ infra-claude` appears under
-   **Lines** with an amber wire, *held at the gate* (the browser tab shows a count). Click
-   it: the held message shows a plain comment field right under it, then
-   **approve** / **return to sender** / **drop**. Whatever you type there goes with your
-   decision: to infra-claude as an appended note on approve, back to main-admin as the
-   reason on return. On drop it goes nowhere (the message is simply dropped). Approve it.
+   infra-claude a message. The brake is on, so the message stops at the gate: a new line
+   `main-admin ↔ infra-claude` appears under **Lines** with an amber wire, *held at the
+   gate* (the browser tab shows a count). Click it: the held message shows a plain
+   comment field right under it, then **approve** / **return to sender** / **drop**.
+   Whatever you type there goes with your decision: to infra-claude as an appended note
+   on approve, back to main-admin as the reason on return. On drop it goes nowhere (the
+   message is simply dropped). Approve it.
 3. infra-claude receives the message, lists its files, and replies. The reply passes the
    same gate, so approve it too.
 4. main-admin reads the answer and replies to you. Its rectangle shows **1 new**; click it
-   to read the answer in the pane.
+   to read the answer in the pane. Press **Brake** again and the lines return to
+   auto-pass: from now on the agents talk while you read along.
+
+The same request typed into main-admin's own terminal gives the same exchange on the
+board, except for the last step: the answer comes back to you in that terminal, where
+you asked. The hub tells an agent, with every answer it delivers, whether anyone on the
+board is waiting for it or whether the request came from its terminal.
 
 Click any rectangle or wire to read that conversation; the pane scrolls.
 
@@ -225,8 +235,13 @@ it is, so agents wait rather than flood.
 The [user guide](user-guide.md) is the reference for everything below and more, part
 by part: teams and agents, lines and the gate, the shift, and the Admin page.
 
-- **The dial.** With a line selected, **switch to auto-pass** in the pane header lets its
-  messages flow without you (still logged); **switch to supervised** puts the gate back.
+- **The dial.** With a line selected, **switch to supervised** in the pane header puts
+  its messages behind the gate; **switch to auto-pass** lets them flow without you
+  (still logged). Admin, Defaults sets the mode a new line starts in.
+- **The brake.** **Brake** beside the shift pill switches every agent line to supervised
+  at once, for when a task has gone wrong across several lines; pressing it again
+  returns them to the default. A turn already running in a session finishes first; the
+  brake holds the next message.
 - **Return and drop.** On a held message, **return to sender** hands it back with your
   comment for another pass; **drop** ends it: the sender is told not to resend, and your
   comment stays on the WebUI as your own record. Both stay in the history.
@@ -239,7 +254,7 @@ by part: teams and agents, lines and the gate, the shift, and the Admin page.
   closes it. `auto` (the default) lets any pair start talking on their own. You are
   always reachable either way.
 - **Release.** If an agent died mid-reply and its line is stuck waiting, **release** in the
-  pane header resets it.
+  pane header resets it: the open thread ends and both agents are told.
 - **Archive.** When a conversation is done, **archive** in the pane header moves its history
   to the **Archive** page (read it again, export it as JSON) and the line starts empty.
 - **Memory.** A closed thread becomes a case file, and agents can leave notes for the

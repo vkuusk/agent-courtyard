@@ -1176,6 +1176,151 @@ uv run python scripts/runbook/memory_export.py
 
 ---
 
+## Tool results worded by the hub (design communication-protocols.md sections 3.3 and 8)
+
+**Feature under test:** what a courtyard tool returns to a model is written by the
+hub and forwarded by the adapter, the way the envelope and the peers listing are. The
+answer to a send carries `result`, the answer to a close carries `result`, the answer
+to an acknowledgement carries `result`, and a refusal carries `rendered` beside its
+`code` and `message`. Both adapters show the same words; a refusal reads
+"The courtyard hub refused: [code] message" in both.
+
+**Scripted part** (any hub; changes no courtyard-wide setting):
+
+```
+uv run python scripts/runbook/tool_results.py
+```
+
+Checkpoints printed: held at the gate; accepted for an agent that is not connected;
+a refusal as the model reads it; the close; delivered to the operator; an
+acknowledgement no check is waiting for.
+
+**Manual part:**
+
+1. In a Claude Code agent and in a pi agent, ask each to message a peer on a
+   supervised line: both terminals show the same "Held at the gate" sentence.
+2. Ask one of them to send again before the answer: the refusal starts with
+   "The courtyard hub refused: [turn_violation]" and carries no ids.
+
+The wording itself is in `src/courtyard/texts/results.yml`; the golden files
+`tests/texts/golden/tool_results_*.txt` show every variant.
+
+
+---
+
+## Adapters fetch their texts from the hub (design communication-protocols.md section 8)
+
+**Feature under test:** at session start an adapter asks the hub for its tool
+definitions, its standing instructions and the few texts it words on its own side
+(`GET /api/agents/{name}/texts`), and uses the copy packaged with it when the hub does
+not answer. The two adapters get the same definitions in their hosts' shapes; they
+differ only by the variables declared in `src/courtyard/texts/tools.yml`. A wording
+change reaches an agent at its next session start, without rewriting its files. The
+pi skill is the exception: pi loads it from disk, so it changes with "sync dir".
+
+**Scripted part** (any hub; changes no courtyard-wide setting):
+
+```
+uv run python scripts/runbook/adapter_texts.py
+```
+
+Checkpoints printed: the Claude Code bundle (MCP entries, instructions); the pi bundle
+(labels, guidelines, no instructions); the declared differences and nothing else; the
+packaged copy used when no hub answers, with the same wording.
+
+**Manual part:**
+
+1. Start a pi agent with the hub up: `.courtyard/adapter.log` in its workdir says
+   `tools registered (hub wording)`, and the seven courtyard tools answer.
+2. Stop the hub, start the pi session again: the log says
+   `tools registered (packaged wording)` and the tools are still listed.
+3. A Claude Code agent started while the hub is down still lists the tools
+   (`/mcp` in the session); its adapter log says the packaged copy is in use.
+
+
+---
+
+## An answer says where its result belongs (design communication-protocols.md sections 3.3 and 6.3)
+
+**Feature under test:** the hub cannot see a terminal, so it cannot know that a user
+typed a request there; it does know on which lines an agent is still awaited. The
+footer of every delivered answer ends with that fact: the participants the recipient
+still owes a reply on the board, by name, or that nobody on the board is waiting, in
+which case a request typed in its terminal is answered there. The relay rule ("if you
+asked on someone else's behalf, deliver them the answer") is gone, and no text says
+the terminal reaches nobody. The send result states the line's state: an ask leaves
+the line awaiting a reply, an answer leaves nobody owing one.
+
+**Scripted part** (any hub; changes no courtyard-wide setting):
+
+```
+uv run python scripts/runbook/owed_reply.py
+```
+
+Checkpoints printed: the answer's footer when the request was typed in the terminal
+(nobody on the board is waiting); the same ask when the operator asked on the board
+(the operator is named); the send result of the ask and of the answer.
+
+**Manual part** (the 2026-09-13 session, feedback item 45):
+
+1. With two agents on an auto-pass line, type in one agent's terminal: "ask <the
+   other agent> whether it has any CSV files". The agent asks through the hub, closes
+   the thread when the answer comes, and answers you in the terminal. Nothing appears
+   on your line with that agent on the WebUI.
+2. Ask the same question from the WebUI composer instead: the agent asks its peer and
+   sends you the answer on the board with `courtyard_send`.
+3. Admin, Message envelope: the two answer variants show the statement; the
+   membership block and the instructions name "the user" and "the operator" apart.
+4. In a pi agent's terminal, a courtyard card shows the message body and the line
+   "(ctrl+o shows the full envelope ...)"; ctrl+o shows the preamble and the footer.
+5. Ask an agent to message a peer by a wrong name (for example `inventory` for
+   `inventory-agent`): the refusal names the closest agents, and the agent retries
+   without a `courtyard_peers` call.
+
+
+---
+
+## Message transfer control: defaults, the operator's lines, endings, serves, the brake (design communication-protocols.md section 7)
+
+**Feature under test:** a new agent line starts on auto-pass (D6). An agent's own
+message to the operator is delivered, awaits no reply, and the thread it opens ends at
+once; the operator's messages take turns. A release ends the line's open thread as
+`locked` and both agents get a notice; the end of a shift tells the agents on every
+line it touched. `serves` on a send names the participant whose open thread the ask
+serves; the answer's footer then names whom the result is for; a declaration with no
+such open thread is refused. The team-wide brake switches every agent line to
+supervised and back, and a new line starts supervised while it is on.
+
+**Scripted part** (its own throwaway hub: it flips the brake):
+
+```
+uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py start --name flow
+COURTYARD_HUB_URL=<printed url> uv run python scripts/runbook/flow_control.py
+uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py stop --name flow
+```
+
+Checkpoints printed: the default and the first message going through; the report's
+result, the idle line and the closed thread, a second report at once; the locked
+thread and both notices after a release; the served-thread statement and the refusal;
+the brake on (every agent line supervised, a new line held), off (back to the default),
+and the settings flag.
+
+**Manual part:**
+
+1. Courtyard page: the **Brake** button sits beside the shift pill. Click it: it turns
+   red and reads "Brake on", every agent line's label reads supervised, and the next
+   message an agent sends waits at the gate. Click again: the lines read auto-pass.
+2. In an agent's terminal, ask it to report something to the operator: its terminal
+   shows "no answer is to be expected", your line with it shows the message, and the
+   thread count grows by one closed thread. Write back from the composer: your message
+   opens a thread of yours, which the agent's answer leaves open until you close it.
+3. Release a line an agent is waiting on: both agents' sessions show the notice.
+4. End the shift with a line mid-conversation: at the next shift both agents' sessions
+   show the shift-end notice before anything else.
+
+
+---
+
 ## The database's identity: a swapped postgres is refused (D38, item 44)
 
 **Feature under test:** at startup the hub stamps the database with an identity

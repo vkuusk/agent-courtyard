@@ -61,6 +61,13 @@ def give_team(post, tmp_path_factory):
     return team_dir
 
 
+def start_supervised(patch):
+    """The product starts a new line on auto-pass (D6); the functional tests were written
+    against the gate, so a test hub starts new lines supervised. The product default
+    itself is tested in test_registry_api. `patch` is any callable(path, json)."""
+    patch("/api/settings", {"default_line_mode": "supervised"})
+
+
 @pytest.fixture()
 def bare_client(config):
     """A hub in the transient pre-team state: only team registration works. For tests
@@ -76,6 +83,7 @@ def client(config, tmp_path_factory):
     _truncate(config)
     with TestClient(create_app(config)) as c:
         c.team_dir = give_team(lambda path, body: c.post(path, json=body).json(), tmp_path_factory)
+        start_supervised(lambda path, body: c.patch(path, json=body))
         yield c
 
 
@@ -115,6 +123,7 @@ def live_hub(config, tmp_path_factory):
             give_team(
                 lambda path, body: httpx.post(f"{url}{path}", json=body).json(), tmp_path_factory
             )
+            start_supervised(lambda path, body: httpx.patch(f"{url}{path}", json=body))
         return url
 
     yield _start

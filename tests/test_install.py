@@ -370,7 +370,10 @@ class TestPiInstall:
         assert '"tok"' in text and '"pibot"' in text and HUB in text
         assert "__COURTYARD_" not in text  # every placeholder substituted
         # the membership context's fallback (D40) is rendered in, without a team's name
-        assert "You are configured as part of a team" in text and "of the team" not in text
+        assert "You are configured as part of a team" in text and 'of the team \\"' not in text
+        # the tool definitions and the extension's own texts are rendered in as the
+        # fallback for a session that starts while the hub is down
+        assert '"courtyard_close_thread"' in text and "results.inbox_empty" in text
         assert mode(ext) == 0o600
         script = tmp_path / "start-with-courtyard.sh"
         assert "exec pi " in script.read_text()

@@ -1,16 +1,5 @@
 # Hub memory: the team remembers collaboration, not craft
 
-Status: accepted; slices 1 to 3 implemented (the case file and `courtyard_recall`,
-migration 0020; notes with `courtyard_note`, the gate on the Memory page and the
-operator's note form, migration 0021; vectors with pgvector, the `Encoder` interface
-with a local HTTP implementation and the fake test double, the backfill sweep and
-`hybrid` mode, migration 0022; decision D37 in `architecture-v1.md` §13). Slice 4 is
-open. The encoder choice (open question 3) resolved to any OpenAI-compatible endpoint
-on localhost, Ollama with `nomic-embed-text` being the documented default.
-Origin: feedback item 39. The architecture's non-goals (`architecture-v1.md`
-section 2) listed a memory subsystem as a v2 candidate; this document is the design
-that lifted it out of that list.
-
 ## 1. The problem
 
 Courtyard deliberately leaves craft memory to the agents. Each specialist grows
@@ -28,13 +17,13 @@ things every day:
   peer's turn on it.
 - **The operator's verdicts.** A return to sender with a comment is the highest
   signal event the hub records: this message, on this line, was wrong, and here
-  is why. Today it lands in the archive and is never read again. Supervision
-  teaches nobody.
+  is why. Without memory it lands in the archive and is never read again, and
+  supervision teaches nobody.
 - **The record as material.** The complete inter-agent history is the one thing
   in the system that no agent can see and the operator sees only live. It is
   exactly what an audit, a post-mortem, a training set or a runbook would be
-  written from, and today the only way to it is the Archive page, one line at a
-  time.
+  written from, and without memory the only way to it is the Archive page, one
+  line at a time.
 
 The wider field describes the same gap. Disposable agent teams (a lead spawns
 teammates for one task and dissolves them) re-establish context on every spawn:
@@ -60,29 +49,34 @@ test, and two fall on the wrong side of it by design:
   the two paths the hub already owns, the envelope and the hub tools, and
   through nothing else.
 
-A second principle follows from the first slice of discussion: **a memory layer is
-only real once there is a path that delivers it back into an agent's context.**
+A second principle: **a memory layer is only real once there is a path that
+delivers it back into an agent's context.**
 Extraction into storage that nothing reads back is a dashboard feature. So the
 retrieval hop is designed first, and extraction is shaped to serve it.
 
 ## 3. The case file
 
 The unit of memory is the closed thread (`threads.md`): one ask, its resolution,
-done. Only threads that closed become case files. Threads the shift expired or the
-budget locked never got their answer, and recording them would skew every later
-judgement toward asks that failed. Threads between the operator and an agent count
-too: they are where most tasks originate, and they are never gated. At close the
-hub assembles the thread's story, which today is spread over the messages,
-threads, lines and agents tables and the gate columns, into one **case file**.
-The write-time work is assembly, not summarization: the hub makes no model call,
-and the reader summarizes at read time, which is what a model does well.
+done. Only threads that closed become case files. Threads that expired or were
+locked never got their answer, and recording them would skew every later
+judgement toward asks that failed. Threads the operator opened with an agent count
+too. An agent's report to the operator does not: the hub ends that thread at once
+(`threads.md` section 3), and it holds no ask and no resolution, so it stays in the
+line's history only. At close the
+hub assembles the thread's story, which is spread over the messages, threads,
+lines and agents tables and the gate columns, into one **case file**. The
+write-time work is assembly, not summarization: the hub makes no model call, and
+the reader summarizes at read time, which is what a model does well. A digest
+written by a model would be shorter, at the price of an API key, a cost and a new
+failure mode inside the hub.
 
 One record, two parts:
 
 - **Typed columns**, for filtering and for the WebUI: id, kind (`case` or
   `note`), the thread and line it came from, participants (ids and names as they
   were at the time), who opened it, opened and closed timestamps, message count,
-  and verdict counts (approved, returned, dropped). Plus `superseded_by`, the
+  verdict counts (approved, returned, dropped), and the thread this one served,
+  when its opening ask declared one (`threads.md` section 3). Plus `superseded_by`, the
   encoder name and the embedding column of section 7, and a full-text index over
   the searchable text.
 - **A JSON document**: the ordered messages with sender, body, the gate verdict,
@@ -96,6 +90,13 @@ Two views of a record serve the two kinds of reader:
   (the last message before close), every verdict with its comment, and a handle.
   Bounded, so it fits an agent's context the way a delivery does.
 - **The full case file**, fetched by the handle: the whole document above.
+
+Both views follow the served-thread link. A record names the participants of the
+thread it served and, once that thread has closed, the handle of its case file;
+the full case file also lists the case files of the threads that served it. A
+helper's thread usually closes before the thread it served, so the link is kept
+as the thread and resolved to a case file at read time. A handle is shown only to
+a reader who may open it (section 8).
 
 The second kind of record is the **note**: a memory record with an author, a body
 and a scope, no thread. Its scope is one line unless the author says team-wide.
@@ -112,7 +113,7 @@ Where it comes from is section 4; why it is not a message is section 5.
    rest of the team to know without anyone having asked.
 
 Nothing else writes memory. End shift writes none: the threads it expires (D24)
-and the threads the budget locked stay in the archive only. The hub does not mine
+and the threads a budget or a release locked stay in the archive only. The hub does not mine
 messages in the background looking for lessons; that would be summarization the
 hub cannot do without a model, and it would produce records with no event behind
 them.
@@ -120,8 +121,8 @@ them.
 ## 5. Delivery paths
 
 Two paths, both riding what the hub already owns, and both pull: the envelope's
-token overhead is measured and watched (item 29), and every push is a standing
-cost on every message. Verdicts in particular need no delivery of their own: a
+token overhead is measured and watched, and every push is a standing cost on
+every message. Verdicts in particular need no delivery of their own: a
 return already goes back to its sender with the comment, and an approval already
 goes on to its recipient with the note (D7, D27), inside the thread, at the moment
 they apply. Memory keeps them for later recall; it does not deliver them twice.
@@ -147,13 +148,6 @@ Recall ranks with the team's declared domains: a record's participants carry the
 took part in first, before any vector exists. The existing `courtyard_peers`
 roster is unchanged: the roster says who owns what, memory says what happened.
 
-A third path is deferred, not rejected: **the envelope hint**. When an incoming ask
-closely matches existing records, the delivery could carry their handles only, one
-line such as "the team has discussed this before: cases 41, 57", and the agent
-fetches what it wants through recall. Handles cost a few tokens; the content costs
-nothing until asked for. It is a push all the same, so it waits for the similarity
-of section 7 and for item 29's measurements.
-
 ## 6. Beyond the agents
 
 The store is the same; the readers differ. One read endpoint serves them all,
@@ -172,10 +166,8 @@ in JSON Lines. Admin surface, unauthenticated on localhost like the rest (D3).
   promote representatives into a knowledge base that a human reviews. Case files
   are that material with provenance attached, so a distilled runbook can be
   checked against its source.
-- **The judge.** A future agent that sits on a supervised line and gives verdicts
-  in the operator's place. Not designed here. The hub's memory is its precedent:
-  it rules on past verdicts and their comments, alongside other sources of rules,
-  so the case file keeps every verdict, its comment and who decided.
+- **Precedent.** The case file keeps every verdict, its comment and who decided,
+  so whoever rules at the gate can read past verdicts as precedent.
 
 The operator reads memory on a dedicated **Memory** page: search in each of the
 modes of section 7, filters by participant, line and date, the trimmed and full
@@ -187,9 +179,8 @@ The export is the interface for other parties: `GET /api/memory/export` streams
 every record as JSON Lines, one full record per line, with the same filters as the
 search (participant, line, since) so an external system can pull incrementally by
 date. Superseded records and returned or dropped notes are included with their
-status: the export is the labeled set, and those labels are part of it. What is done
-with the raw memory outside the hub is where its use cases are expected to show
-first; the hub curates nothing until they do (section 11).
+status: the export is the labeled set, and those labels are part of it. The hub
+curates nothing: what is done with the raw memory happens outside it.
 
 ## 7. Similarity: full text first, vectors behind the same door
 
@@ -204,9 +195,8 @@ API or the tool:
   and adds an `embedding` column, and each record stores `embedding_model`. The
   column has no fixed dimension (the encoder decides it), and every vector search
   filters on the current model name, so a model change is a re-embed, never a
-  schema change; the stored model name is what makes that safe. No index until the
-  table reaches tens of thousands of rows; an HNSW index is one more migration
-  then.
+  schema change; the stored model name is what makes that safe. There is no vector
+  index: a sequential scan is fast at the table sizes a team produces.
 - **What is encoded.** One vector per record, computed from the ask, the
   resolution and the verdict comments (untrimmed), because that is the text a
   future question resembles. Notes are encoded from their body.
@@ -218,28 +208,22 @@ API or the tool:
   timeout of seconds, not the sweep's minute, and falls back to full text.
 - **The encoder.** An `Encoder` interface with a `none` default. With no encoder
   configured, recall is full-text only; the hub's ready line and the Memory page
-  say so (the tool's listing does not name its mode). Implementations, in order:
-  a local HTTP encoder (Ollama or any OpenAI-compatible embeddings endpoint on
-  localhost; the hub stays light and the same shape works as a sidecar on a
-  remote host), an in-process ONNX encoder (small models, no torch) if the extra
-  service proves a burden, and a third-party embeddings API as an explicit
-  opt-in setting, because it sends message bodies off the machine and the README
-  promises nothing does by default. The opt-in has a precedent: the non-local
-  bind flag.
+  say so (the tool's listing does not name its mode). The implementation is an
+  HTTP encoder for any OpenAI-compatible embeddings endpoint; Ollama with
+  `nomic-embed-text` is the documented default. The endpoint is on localhost unless
+  the operator opts in to a remote one with an explicit setting, because a remote
+  encoder sends message bodies off the machine and the README promises nothing
+  does by default. The opt-in has a precedent: the non-local bind flag. A fake
+  encoder serves the tests.
 - **Retrieval.** Modes `exact` (Postgres full-text, `websearch_to_tsquery`),
   `vector`, and `hybrid` (both, merged by reciprocal rank fusion). The tool never
   exposes the mode: it uses hybrid when embeddings exist and full-text otherwise.
   The API exposes it for other consumers and for testing. Filters by participant,
   line and date are SQL `WHERE` clauses applied before ranking in every mode (a
-  domain filter is not built; domains rank, they do not filter). Results are
+  there is no domain filter: domains rank, they do not filter). Results are
   records, never scores alone, so adding vectors changes what comes first, not
   what a result is. A question that holds no searchable lexeme (stop words,
   punctuation) is answered as such, never as "nothing settled".
-
-A remote hub changes nothing here: Postgres with pgvector and the encoder sit
-beside the hub; agents only ever call the tool. The shift's terminal spawning is
-the one part of a remote setup that needs a local proxy, and that is a separate
-design.
 
 ## 8. Governance
 
@@ -253,14 +237,15 @@ agent. Each rule below answers one of those.
 - **Supersession, not deletion.** A later decision that reverses an earlier one
   marks the earlier record `superseded_by`. Only the operator supersedes; an agent's
   new note never supersedes anything on its own. Every read honours the column (a
-  superseded record is not recalled); nothing is silently rewritten. The column and
-  the reads exist; the operator's control does not, until real use asks for it
-  (section 11). Until then the close date carried by every recalled record is what
-  lets an agent weigh an older answer against a newer one.
+  superseded record is not recalled); nothing is silently rewritten. The WebUI has
+  no control for it; the close date carried by every recalled record is what lets
+  an agent weigh an older answer against a newer one.
 - **The gate applies to writes.** An agent's note is visible on the WebUI the
-  moment it is written and, under supervision, waits for the operator like a
-  message: approve, return with a comment, or drop. Unsupervised notes flow like
-  auto-pass messages and are still logged. This is the defense against
+  moment it is written. A note on a supervised line, and every team-wide note,
+  waits for the operator like a message: approve, return with a comment, or drop.
+  The team-wide brake (`communication-protocols.md` section 7.4) therefore holds
+  notes together with the messages. A line-scoped note on an auto-pass line flows
+  like an auto-pass message and is still logged. This is the defense against
   poisoning, and it is the same dial the operator already knows. Case files
   themselves need no gate: every message in them already passed it.
 - **Visibility follows discovery and scope.** Under `auto`, every agent recalls
@@ -281,97 +266,27 @@ agent. Each rule below answers one of those.
   Archive page's delete confirmation names how many case files go with it. A
   deleted case file that had superseded another leaves that record in place,
   unsuperseded. Notes are not tied to an archive and are kept; there is no delete
-  for them until a use for notes is known (section 11).
+  for them.
 - **Recall is bounded and visible.** A recall result enters an agent's context.
   The tool returns at most five trimmed records (an Admin setting), each capped in
   length (a second setting), and the Admin page's envelope preview shows a recall
-  payload the way it shows the envelope, so the token cost stays measured (item 29).
+  payload the way it shows the envelope, so the token cost stays measured.
 
-## 9. Options considered
+## 9. Relations to other designs
 
-The one decision that shapes everything else: a digest needs a model, and the hub
-makes no model calls today. In the votes column, 0 means parked.
-
-| option | what it gives | what it costs | votes |
-|---|---|---|---|
-| **Structure, not prose.** The hub assembles the case file from facts it already holds; the reader summarizes at read time | no model in the hub, no key, no new failure mode; recall works from day one | records are longer than a digest; a reader spends tokens summarizing | chosen for slice 1 |
-| **The hub calls a model itself** to write a digest per case file | short, readable digests; cheaper recall | an API key and a cost inside the hub; a heavy subsystem, which the architecture says becomes a second process | later, if recall proves used |
-| **The closer writes the digest.** The initiator's close call carries a summary | no model in the hub; the agent that knows the outcome writes it | revisits D34, which made close a bare tool on purpose; digests of uneven quality | 0 |
-| **A dedicated vector or graph store** (a second database) | purpose-built similarity search | a second store to keep consistent with Postgres; against the one-transaction-domain principle | 0 |
-| **Mining transcripts** for lessons | more material | breaks the rule of section 2 | rejected |
-
-## 10. Slices
-
-1. **The case file and recall.** Migration: the memory table (typed columns, the
-   JSON document, a full-text index), written at thread close, operator threads
-   included. `courtyard_recall` in both adapters, full-text with domain ranking,
-   five records per call. `GET /api/memory` and `GET /api/memory/{id}`. The Memory
-   page, read-only in this slice. Runbook: two agents converse, the thread
-   closes, a third agent recalls it.
-2. **Notes.** `courtyard_note` with line scope and gate handling; the operator's
-   note form and the scope controls on the Memory page. Envelope preview shows a
-   recall payload.
-3. **Vectors.** pgvector image and migration, the `Encoder` interface with the
-   local HTTP implementation, the backfill sweep, `hybrid` mode. Runbook: a
-   paraphrased question finds the case file that exact search misses.
-4. **Export and retention.** The JSON Lines export (section 6) with its button on
-   the Memory page, and the retention rule (section 8): a case file goes with its
-   archive, the delete confirmation counts them. Runbook: two case files on one
-   line, an archive, its export, its deletion taking the right case files with it.
-   The `manual` discovery filtering listed here at first shipped in slice 1.
-   Curation (the supersede control, a note's scope controls and deletion) is not
-   built: see section 11.
-
-Each slice ships with tests, a runbook entry and a script, per
-`developer-notes.md`.
-
-## 11. Open questions
-
-Settled and folded into the sections above: no
-deliveries of verdicts outside the thread they belong to (no notice on the next
-send, no shift-start brief); domain-aware ranking from slice 1; notes scoped to a
-line unless the author says otherwise; only closed threads become case files;
-operator threads included; the operator alone supersedes; five records per
-recall; a dedicated Memory page; the tool names `courtyard_recall` and
-`courtyard_note`.
-
-Still open:
-
-1. **What notes are for.** In the first weeks of live use no agent wrote a note,
-   and the operator addressed agents through the charter, not through notes. The
-   tool and the form stay so that notes are collected; nothing about them is
-   improved (no supersede control, no scope change, no deletion) until collected
-   notes show a use. The memory subsystem's job for now is to memorize and to hand
-   the raw memory to the WebUI and to external systems through the API; how memory
-   is used is learned from them. Reviewed again when there is production-grade
-   memory to look at.
-2. **The envelope hint** (section 5), and any other automatic use of memory by
-   the hub: listed in `../planning/next-features-list.md`, waiting on the same evidence.
-3. **The judge.** Its own design, once memory exists to rule from.
-4. **Encoder choice for slice 3.** Resolved: an OpenAI-compatible embeddings
-   endpoint on localhost (Ollama, `nomic-embed-text` documented), the fake encoder
-   for tests; an in-process ONNX encoder stays an option if the extra service proves
-   a burden.
-
-## 12. Relations to other designs
-
-- **Threads** (`threads.md`, D34): the closed thread is the unit; close and
-  expiry are the write moments. Nothing in the thread construct changes.
+- **Threads** (`threads.md`, D34): the closed thread is the unit, the close is
+  the write moment, and a case file carries the link to the thread it served.
+- **Communication protocols** (`communication-protocols.md`): memory adds no rule
+  to how messages move. Recall and notes are tool calls; notes pass the gate.
 - **Archive** (`architecture-v1.md` section 5.7, D20): the archive stays the raw,
   immutable record per line; memory is derived from it and deleted with it.
-- **The envelope** (section 7.5): unchanged in slices 1 and 2; the deferred
-  envelope hint would be a hub notice carrying record handles.
-- **Discovery** (section 5.8, D22): visibility of memory follows the same
-  setting.
+- **The envelope** (`architecture-v1.md` section 7.5): memory adds nothing to it;
+  both delivery paths are tool calls.
+- **Discovery** (`architecture-v1.md` section 5.8, D22): visibility of memory
+  follows the same setting.
 - **Team charter** (`team-charter.md`, D33): whether notes are allowed, who may
-  write them, and the recall limit are rules of engagement and could live in the
-  charter later; the mechanism is defined here.
-- **Feedback item 39** (`../planning/feedback-items.md`): the origin of this
-  design and the four candidate memory types; item 1 there (digests, recall) is
-  slice 1 here; item 2 (verdict lessons) is kept as data in the case files and
-  not delivered separately; item 3 (routing suggestions) became domain-aware
-  ranking; item 4 (operator-side patterns) is a query over the same table and is
-  not designed separately.
+  write them, and the recall limit are rules of engagement; the mechanism is
+  defined here.
 
 ## Appendix: further reading
 

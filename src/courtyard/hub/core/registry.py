@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import logging
 import secrets
@@ -11,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import AGENT_COLORS, Agent, PeersView
 from courtyard.hub.core.archive import archive_line_in
 from courtyard.hub.core.errors import (
@@ -45,6 +47,22 @@ def pick_color(agents: list[Agent]) -> str:
         a.color for a in agents if a.color and a.removed_at is None and a.type != "human"
     )
     return min(AGENT_COLORS, key=lambda c: (used.get(c, 0), AGENT_COLORS.index(c)))
+
+
+def unknown_agent_text(name: str, agents: list[Agent]) -> str:
+    """The refusal for a name nobody carries (item 45): it names the closest registered
+    names, so a model that typed `inventory` for `inventory-agent` can retry at once
+    instead of spending a `courtyard_peers` call. Failing a close match, the whole board,
+    which a real courtyard keeps to a handful of names."""
+    names = sorted(a.name for a in agents if a.removed_at is None)
+    if not names:
+        return texts.render("refusals.unknown_agent.nobody", name=name)
+    lowered = name.lower()
+    close = [n for n in names if lowered in n.lower() or n.lower() in lowered]
+    close += [n for n in difflib.get_close_matches(name, names, n=3, cutoff=0.5) if n not in close]
+    if close:
+        return texts.render("refusals.unknown_agent.close", name=name, names=", ".join(close))
+    return texts.render("refusals.unknown_agent.board", name=name, names=", ".join(names[:8]))
 
 
 class Registry:
@@ -175,7 +193,7 @@ class Registry:
         except ValueError:
             agent = uow.agents.get_by_name(name_or_id)
         if agent is None:
-            raise UnknownAgent(f"no agent named {name_or_id!r}")
+            raise UnknownAgent(unknown_agent_text(name_or_id, uow.agents.list()))
         return agent
 
     def get(self, name_or_id: str) -> Agent:

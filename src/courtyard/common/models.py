@@ -75,8 +75,11 @@ class Thread(BaseModel):
     opened_by: UUID
     opened_at: datetime
     ended_at: datetime | None = None
+    serves: UUID | None = None  # the thread this one's opening ask serves (threads.md §3)
     # display enrichment, filled by the storage layer's join
     opened_by_name: str | None = None
+    # filled by the hub on the answer to an agent's close call: the tool result
+    result: str | None = None
 
 
 class Line(BaseModel):
@@ -133,6 +136,9 @@ class Message(BaseModel):
     # authority-graded envelope (design §7.5), ready for the model verbatim. Absent on
     # operator-facing reads (board, line history), which show the raw body.
     rendered: str | None = None
+    # filled by the hub on the answer to a send: the tool result, worded for the sender
+    # (design communication-protocols.md section 3.3). Adapters forward it verbatim.
+    result: str | None = None
 
 
 class Archive(BaseModel):
@@ -385,9 +391,13 @@ class Settings(BaseModel):
     # service validates membership on every change
     terminal_app: str = "Terminal"
     custom_terminals: list[CustomTerminal] = []
-    # 7c: the supervision dial a NEW line starts on (D6 kept supervised as the default;
-    # this is its promised relief valve). Existing lines keep whatever they were set to.
-    default_line_mode: LineMode = "supervised"
+    # the supervision dial a NEW line starts on (D6: auto-pass, since the main way of
+    # working is a user in an agent's terminal whose agent asks teammates through the hub;
+    # supervision is the operator's brake). Existing lines keep whatever they were set to.
+    default_line_mode: LineMode = "auto_pass"
+    # the team-wide brake (communication-protocols.md section 7.4): while on, every agent
+    # line is supervised and a new one starts supervised; off returns them to the default
+    brake: bool = False
     # D34 (threads.md §5 item 2): messages per thread before the hub locks it — the
     # structural answer to item 29 (backpressure per task). 0 = no budget. Threads
     # with the operator in them are never locked, whatever this says (D9 analog).

@@ -1,0 +1,26 @@
+# What a courtyard tool returns to the model that called it
+# (communication-protocols.md section 3.3).
+
+send:
+  to_operator: 'Delivered to {to} (seq {seq}): received, and no answer is to be expected. The operator will write to you if needed.'
+  held: 'Held at the gate for the operator''s approval (seq {seq}); it has not reached {to} yet. Wait: you will be told if it is returned or dropped.'
+  delivered: 'Delivered to {to} (seq {seq}). This line now awaits their reply: do not send to {to} again until they answer.'
+  accepted: Accepted (seq {seq}); {to} is not connected right now, so the hub will hand it over when they attach. The line awaits their reply.
+  delivered_answer: 'Delivered to {to} (seq {seq}). That answers their message: nobody owes a reply on this line now, and the thread stays open until its initiator closes it.'
+  accepted_answer: 'Accepted (seq {seq}); {to} is not connected right now, so the hub will hand it over when they attach. That answers their message: nobody owes a reply on this line now.'
+close: Thread closed; the hub has told {peer}. A new ask with {peer} may start now.
+inbox_empty: No unread courtyard messages.
+ack:
+  confirmed: Delivery confirmed to the hub. Nothing further is needed.
+  closed: That check is no longer open (it may have timed out or been superseded); nothing further is needed.
+noted: Noted (id {id}).
+refused: 'The courtyard hub refused: [{code}] {message}'
+unreachable: 'The courtyard hub at {hub_url} is unreachable: {error}'
+tool_failed: 'The courtyard tool {tool} failed: {error}'
+unknown_tool: 'unknown tool: {tool}'
+required:
+  to_and_message: both `to` and `message` are required
+  peer: '`peer` is required'
+  body: '`body` is required'
+  token: '`token` is required'
+bad_limit: '`limit` must be a whole number, got {limit}'

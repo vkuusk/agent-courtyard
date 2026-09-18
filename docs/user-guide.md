@@ -247,10 +247,11 @@ agent by hand with the channel flag it needs to hear the hub.
 
 The hook runs once each time a session starts (or resumes, clears or compacts) and
 gives it a short block of context: that this project is registered as agent so-and-so
-of your team, that the hub's messages arrive through the channel named `courtyard`,
-what kinds of message to expect, that the delivery check at the start of a shift is
-expected, and that when a courtyard message asks nothing more of it, it ends its turn and
-waits. Without it a session in a fresh directory has nothing on its own side saying
+of your team, who may talk to it (you in its terminal, and the operator through the
+hub), that the hub's messages arrive through the channel named `courtyard`, what kinds
+of message to expect, that a delivery check when its session connects during a shift is
+expected, that a request is answered the way it came, and that when a courtyard message
+asks nothing more of it, it ends its turn and waits. Without it a session in a fresh directory has nothing on its own side saying
 it belongs to a team, and Claude Code presents every channel event as untrusted; a
 cautious model then refuses the delivery check and the first peer question. The text
 comes from the hub (so the names are current) and falls back to a built-in version when
@@ -344,8 +345,14 @@ between their cards on the Courtyard page. Click a wire to read the conversation
   **approve** lets it through, optionally with a note appended for the recipient;
   **return to sender** hands it back with your comment for another pass; **drop** ends
   it and tells the sender not to resend. **auto-pass**: messages flow while you read
-  them, live or later. New lines start in the mode set under Admin, Defaults. Your own
-  messages are never gated.
+  them, live or later. New lines start in the mode set under Admin, Defaults, which is
+  auto-pass unless you change it. Your own messages are never gated.
+- **The brake.** **Brake** beside the shift pill on the Courtyard page switches every
+  agent line to supervised at once and marks itself red; pressing it again returns
+  them to the default. Use it when a task has gone wrong across several lines. It
+  holds the next message on every line; a turn already running in a session finishes
+  first, and a message held while the brake was on still needs your verdict after it
+  comes off.
 - **Discovery.** Under Admin, Settings, **Discovery** `auto` (the default) lets any pair
   of agents start a line on their own, and every agent sees the whole roster. `manual`
   means agents see and can message only the agents you linked: the **+** in the Lines
@@ -353,7 +360,12 @@ between their cards on the Courtyard page. Click a wire to read the conversation
   history and closes it. You are always reachable in either mode. The charter can
   declare the links, and a declared link mode is reasserted on every reload.
 - **Release.** If an agent died mid-reply and its line is stuck waiting, **release** in
-  the pane header resets the turn.
+  the pane header resets the turn, ends the open thread, and tells both agents. Ending
+  a shift does the same for every unfinished line, and the agents read the notice when
+  they next connect.
+- **Asks on behalf of a thread.** An agent that asks a teammate to be able to answer
+  someone else can say so (`serves` on its send names the thread it works for). The
+  hub then tells it, with the answer, whom the result is for.
 - **Archive.** **archive** in the pane header moves a finished conversation to the
   Archive page, where you can read it again, export it as JSON or delete it. The line
   starts empty. Removing an agent archives its lines by itself. Deleting an archive
@@ -395,12 +407,27 @@ hub notices after a short "Checking the team" countdown and asks whether to end 
 old shift or start a new one. After a hub restart, do nothing: each agent turns green
 again on its next heartbeat, and the WebUI never shows a status it has not verified.
 
+### Working in an agent's terminal
+
+The main way to work with the team is the way you already work with one agent: in its
+terminal. Type your request there; when the agent needs help from a teammate, it asks
+through the hub, and the answer comes back to it through the hub. The agent answers you
+in the terminal, where you asked. The hub tells an agent, with every answer it delivers,
+whether anyone on the board is still waiting for it, so a request typed in a terminal is
+answered in that terminal and a request from the board is answered on the board. The
+WebUI is where you watch, and where you step in.
+
 ### Talking to agent in WebUI
 
 Click an agent's card on the Courtyard page and type in the box at the bottom. Your
 message arrives in the agent's terminal as a conversation turn marked as coming from
 the operator, and it is never gated. The agent's replies to you appear in the same
 pane; a card showing **1 new** has an unread reply.
+
+An agent can also write to you first, for example to report that something blocks it.
+Such a message waits for no answer: the agent is told that you will write if needed,
+and its thread on your line closes at once. Your own messages open a thread of yours,
+which the agent's answer leaves open until you close it in the pane header.
 
 A line between two agents has no input box. The only thing you write on a line is the
 comment that travels with your verdict on a held message. To ask an agent something,
@@ -459,7 +486,7 @@ The **Admin** page has these sections:
 - **Terminal application**: the app Start shift opens agents in, and the list of custom
   start strings. A custom start string must contain `{command}`, where the agent's
   launch command goes, and may contain `{dir}`. Its name may not shadow a built-in.
-- **Defaults**: the mode new lines start in; the thread budget (messages per thread
+- **Defaults**: the mode new lines start in (auto-pass); the thread budget (messages per thread
   before the hub locks it; 0 means no budget); **Recall returns**, how many records one
   `courtyard_recall` call may return; **Recall trims to**, how many characters of the
   ask and the resolution a listing shows.

@@ -33,6 +33,11 @@ compatibility: Requires uv and Docker with compose. Live-session checks addition
 - **A new migration**: a test that exercises it. If it rewrites rows, verify it
   against a database seeded with pre-migration data, not only against a fresh
   schema.
+- **A text a model reads** (envelope, notice, refusal, tool result, instructions):
+  the wording lives in `src/courtyard/texts/*.yml`, never in the code. After an
+  edit, regenerate the golden files with
+  `COURTYARD_UPDATE_GOLDEN=1 uv run pytest tests/texts -q` and review their diff;
+  a golden that differs without a YAML edit is a bug to explain, not to regenerate.
 - **WebUI change**: a Playwright drive of the changed flow, checking rendered
   state and console errors.
 - **Every completed feature**: a runbook entry plus a durable script (next

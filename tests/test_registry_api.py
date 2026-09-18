@@ -454,3 +454,32 @@ def test_session_context_names_the_agent_the_team_and_the_channel(client, make_a
     assert '"scribe"' in pi_text and ".pi/extensions/courtyard.ts" in pi_text
     assert ".pi/skills/courtyard/SKILL.md" in pi_text
     assert "<channel" not in pi_text and "mcp__" not in pi_text
+
+
+def test_an_unknown_name_is_refused_with_the_closest_names(client, make_agent):
+    """Item 45 R5: `inventory` for `inventory-agent` cost a courtyard_peers round trip;
+    the refusal now names what the model most likely meant."""
+    from conftest import auth
+
+    _, alice = make_agent("alice")
+    make_agent("inventory-agent")
+    make_agent("tf-dev-agent")
+
+    def refusal(to):
+        resp = client.post("/api/lines/send", json={"to": to, "body": "x"}, headers=auth(alice))
+        assert resp.status_code == 404
+        return resp.json()["error"]["message"]
+
+    assert (
+        refusal("inventory")
+        == "no agent named 'inventory'; the closest names on the board: inventory-agent"
+    )
+    assert (
+        refusal("tf-dev") == "no agent named 'tf-dev'; the closest names on the board: tf-dev-agent"
+    )
+    assert refusal("Inventory Agent") == (
+        "no agent named 'Inventory Agent'; the closest names on the board: inventory-agent"
+    )
+    assert refusal("zzz") == (
+        "no agent named 'zzz'; the agents on the board: alice, inventory-agent, operator, tf-dev-agent"
+    )

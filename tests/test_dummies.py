@@ -9,9 +9,9 @@ from uuid import uuid4
 
 import pytest
 
+from courtyard.adapters.dummy.core import Dummy, ScriptBehavior, ScriptStep
 from courtyard.common.client import HubClient, HubError
 from courtyard.common.models import Message
-from courtyard.dummy.core import Dummy, ScriptBehavior, ScriptStep
 
 _started: list[Dummy] = []
 

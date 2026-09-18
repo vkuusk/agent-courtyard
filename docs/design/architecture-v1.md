@@ -75,7 +75,8 @@ commit:
 |---|---|
 | **Hub** | The exchange board service. One Python process. The only component that stores state. |
 | **Agent** | A registered participant. Type `claude-code`, `pi` (later), `dummy` (fake), or `human` (the operator). |
-| **Operator** | The human. Registered as an agent of type `human`; also the administrator and the v1 gate approver. |
+| **Operator** | The human who administers and supervises the hub on the WebUI. Registered as an agent of type `human`; the gate approver. |
+| **User** | A human working in an agent's terminal. Not registered: the hub never sees what a user types (`communication-protocols.md` section 2.1). Often the same person as the operator. |
 | **Line** | The single two-directional conversation board between one pair of participants. All messages between that pair, including operator insertions, are one sequential chat history. (Also called the "two-directional board".) |
 | **Board** | The whole exchange: all lines, as seen in the WebUI. |
 | **Discovery** | How the team's wiring forms (§5.8, D22): `auto` — every agent sees every other, lines form on first message; `manual` — agents see and can message only the agents the operator has linked. |
@@ -192,10 +193,11 @@ Line {
 }
 ```
 
-**Default mode for a new line: `supervised`.** Safe by default; the operator relaxes lines to
-`auto_pass` explicitly. (Decision D6 — flip the default if it proves annoying in practice.)
-Lines involving the operator are always effectively `auto_pass` (the operator does not gate
-their own messages).
+**Default mode for a new line: `auto_pass`** (D6; the Admin setting `default_line_mode`
+changes it). Agents work together without anything being done on the WebUI. Supervision is
+the operator's brake: set per line, or for every agent line at once with the team-wide brake
+(`communication-protocols.md` section 7.4). Lines involving the operator are never gated
+(the operator does not gate their own messages).
 
 ### 5.3 Message
 
@@ -270,13 +272,19 @@ Rules:
      travels nowhere (item 24 (c)); line returns to `IDLE`. (Named `reject` until item
      24 — too close to "return to sender"; renamed end-to-end, migration 0014.)
 5. `operator_note` and `system` messages are legal in any state and change nothing.
-6. **Release valve:** the operator can `release` a stuck line (agent died mid-reply) — an admin
-   action that returns it to `IDLE` and logs a `system` message. This is the human answer to
-   deadlock; no timeout machinery in v1.
+6. **Release valve:** the operator can `release` a stuck line (agent died mid-reply): an admin
+   action that returns it to `IDLE`, ends the line's open thread as `locked` (`threads.md`
+   section 4), logs a `system` message and tells both participants. This is the human answer
+   to deadlock; there is no timeout machinery.
 7. **Obligations end with the shift (D24, §8.1).** Ending the shift releases every non-idle
    line and marks the unfinished messages `expired` — the working period the obligation
-   belonged to is over. Still no timeout machinery: the boundary is the operator's explicit
-   gesture, not a clock.
+   belonged to is over. The participants are told. Still no timeout machinery: the boundary
+   is the operator's explicit gesture, not a clock.
+8. **The operator's lines take turns in one direction only.** A message from the operator
+   awaits the agent's answer like any other. An agent's message to the operator is delivered
+   and leaves the line `IDLE`: the operator reads reports and answers when there is something
+   to say, and a line waiting on the operator would block the agent's next report
+   (`communication-protocols.md` section 7.3).
 
 The turn machine + gate transitions are the most-tested code in the project: they are the
 invariant every other part relies on.
@@ -305,11 +313,15 @@ Approver (interface):
 
 ### 5.6 The operator as participant
 
-Two interaction modes, both first-class:
+The main way of working is a user in an agent's terminal, whose agent asks its teammates
+through the hub (`communication-protocols.md` section 1). The operator takes part in two
+ways, both supplements to that, used mostly while supervising:
 
-1. **Own lines** — the operator initiates a conversation with any agent from the WebUI;
-   `operator↔agent` is a normal line with the normal turn rule (no gate). Replies to the
-   operator surface in the WebUI inbox.
+1. **Own lines.** The operator sends a message to any agent from the WebUI. An
+   `operator↔agent` line is never gated. A message from the operator awaits the agent's
+   answer; an agent's message to the operator awaits nothing, and the thread such a report
+   opens ends at once (§5.4 rule 8, `threads.md` section 3). Messages to the operator
+   surface in the WebUI inbox.
 2. **Insertion into an inter-agent line** — an `operator_note` on line `a↔b`. Logged in
    that line's history, delivered immediately, no turn effect. **Since item 24
    the only note the WebUI writes is the verdict's comment** (approve →
@@ -547,6 +559,7 @@ Anything that can do these five things can join the courtyard; this is the plugg
 | `peers` | adapter → hub | `GET /api/agents/{id}/peers` — who the agent can talk to, ranked, trimmed and worded by the hub; the adapter forwards the text |
 | `heartbeat` / `detach` | adapter → hub | periodic POST; clean detach at session end |
 | `ack` | adapter → hub | `POST /api/agents/{id}/ack` — returns a delivery-check token (D30); the model's call is the end-to-end proof of hearing |
+| `texts` | adapter → hub | `GET /api/agents/{id}/texts`: the tool definitions in the host's shape, the standing instructions and the adapter's own texts, fetched at session start with the packaged copy as the fallback (`communication-protocols.md` section 8) |
 
 A shared Python client library (`courtyard.common.client`) implements the hub side of this
 contract once; the Claude Code adapter and the dummy both use it. The pi extension
@@ -720,12 +733,15 @@ permissions do not allow, reply saying what blocks you instead of attempting it 
 block becomes a message the operator can act on. The adapter instructions add the
 Claude-Code-specific half (prefer Read/Grep/Glob over shell for exploration); which
 standing permissions each agent gets remains the operator's per-agent call, made at
-team-design time (the hub writes only the courtyard rule, D21). An answer (`reply_to` set) says instead: your exchange **with this
-sender** is complete — send them nothing further; if you asked on someone else's behalf,
-deliver them the answer now (scoped by name since item 26: an unscoped "no reply is owed"
-stopped a relaying agent before it handed the answer back to its operator). An `operator_note` carries its own footer since item 24 (a fresh
+team-design time (the hub writes only the courtyard rule, D21). An answer (`reply_to` set) says instead: this answers your
+message, with the close instruction when the recipient opened the thread; then the
+owed-reply statement: whom the recipient still owes a reply on the board, by name, or that
+nobody on the board is waiting, in which case a request typed in its terminal is answered
+there (`communication-protocols.md` sections 5.3 and 6.3). A general relay rule ("if you
+asked on someone else's behalf, deliver them the answer") does not work in its place: the
+model cannot see where a request came from. An `operator_note` carries its own footer since item 24 (a fresh
 session answered a note into its terminal): the note needs no separate reply, but if it
-asks for something, tell the operator via `courtyard_send` — the terminal reaches nobody.
+asks for something, tell the operator via `courtyard_send`: the operator reads nothing printed in the terminal.
 System messages carry no footer — they take no reply. The footer lives
 in the envelope, not only in the adapter's MCP instructions, deliberately: it arrives with
 *every* delivery, so it survives however the host frames channel events or defers the
@@ -1225,8 +1241,9 @@ against are *accidents and prompt-level attacks*, not a hostile local user.
 ## 12. Repository directory layout
 
 One Python package with multiple console entry points (hub, dummy, adapter pieces share
-models and the client library; one venv, DevOps-friendly). Frontend and future TS adapter kept
-apart from Python source.
+models and the client library; one venv, DevOps-friendly). The frontend is kept apart from
+the Python source; the pi extension (TypeScript) ships inside the package as the template
+install renders into an agent's workdir.
 
 ```
 cbx-agent-courtyard/
@@ -1249,12 +1266,11 @@ cbx-agent-courtyard/
 │   │   ├── core/                   # registry, lines, turns, gate/Approver, deliver(), envelope, peers
 │   │   ├── storage/                # repository interfaces, postgres backend, migrations/
 │   │   └── launch/                 # post-v1 (D16): launch profiles, L1 terminal spawn
-│   ├── adapters/
-│   │   └── claude_code/            # MCP stdio server (thin, D14), courtyard-invite (6d)
-│   └── dummy/                     # fake agent (echo / script / manual)
+│   └── adapters/                   # one package per agent type (§7)
+│       ├── claude_code/            # MCP stdio server (thin, D14), courtyard-invite (6d)
+│       ├── pi/                     # the pi extension template (extension.ts), rendered by install
+│       └── dummy/                  # fake agent (echo / script / manual), the contract's reference
 ├── webui/                          # static: index.html, style.css, js/ (Preact + htm ES modules), vendor/ (one file)
-├── adapters-js/
-│   └── pi/                         # post-v1 (D16): pi TypeScript extension (own package.json)
 ├── scripts/                        # demo scenarios (e.g. two-dummies-conversation)
 └── tests/                          # pytest: unit (core) + integration (hub+dummies over HTTP)
 ```
@@ -1268,7 +1284,7 @@ cbx-agent-courtyard/
 | D3 | No signatures/auth in v1 — "on-my-laptop-only" deployment (trusted machine / home lab). Lightweight per-agent tokens kept as accident-prevention, not authentication | **Accepted** | v2 requirement: hub runnable as a remote service → WebUI login + transport security become mandatory (§11) |
 | D4 | WebUI: no-build vanilla JS + SSE, served by hub | **Accepted**; rendering amended by D18 | Replaceable; API is the contract |
 | D5 | Storage: **PostgreSQL from day one** (plain SQL + migrations) behind the repository interface | **Accepted** | Replaced the earlier filesystem proposal — §9.2 |
-| D6 | New lines default to `supervised` | **Accepted** | Flip to `auto_pass` default if annoying — delivered as the Admin → Defaults setting `default_line_mode` (7c): the dial a NEW line starts on; existing lines keep their own |
+| D6 | New lines default to `auto_pass` | **Accepted** | The main way of working is a user in an agent's terminal whose agent asks teammates through the hub; a gate nobody is watching would stop that at the first message. Supervision is the brake: per line, or team-wide. The Admin → Defaults setting `default_line_mode` is the dial a NEW line starts on; existing lines keep their own |
 | D7 | Gate verdicts = approve(+note) / **return-to-sender**(+comment) / reject(+note); body-edit deferred | **Accepted** (return added at review) | §5.4 rule 4, §5.5; revisit body-edit after step 4 UX. `reject` renamed **`drop`** and its comment stopped travelling — D27 (item 24) |
 | D8 | Launch: L0 (copy-paste) + L1 (macOS terminal spawn — opens the window already `cd`-ed into the agent's workdir, env set, `claude` started); channel always via self-registration | **Accepted** | §8; L2 tmux deferred |
 | D9 | Operator is a registered agent (type `human`); operator lines ungated | **Accepted** | §5.6 |

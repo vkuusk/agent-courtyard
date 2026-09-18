@@ -427,3 +427,41 @@ class TestSessionContextHook:
         assert proc.returncode == 0, proc.stderr
         out = json.loads(proc.stdout)
         assert out["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+
+
+class TestTextsFromTheHub:
+    """Design communication-protocols.md section 8: the adapter lists the tools and gives
+    the instructions in the hub's current wording; the packaged copy is the fallback."""
+
+    def test_packaged_copy_when_the_hub_does_not_answer(self):
+        from courtyard.adapters.claude_code import mcp_server
+
+        assert mcp_server.fetch_texts("http://127.0.0.1:9", "agent-x") is mcp_server.PACKAGED
+
+    def test_the_hubs_wording_is_what_the_session_gets(self, live_hub):
+        from courtyard.adapters.claude_code import mcp_server
+
+        hub = live_hub()
+        admin = HubClient(hub)
+        admin.register_agent("fetcher", "claude-code")
+        admin.close()
+        fetched = mcp_server.fetch_texts(hub, "fetcher")
+        assert fetched is not mcp_server.PACKAGED and fetched == mcp_server.PACKAGED
+
+    def test_a_changed_wording_reaches_the_tool_list_and_the_instructions(self, monkeypatch):
+        import copy
+
+        from courtyard.adapters.claude_code import mcp_server
+
+        changed = copy.deepcopy(mcp_server.PACKAGED)
+        changed["instructions"] = "(new instructions)"
+        changed["tools"][0]["description"] = "(new description)"
+        monkeypatch.setattr(mcp_server, "fetch_texts", lambda hub_url, agent: changed)
+        adapter = mcp_server.CourtyardAdapter(
+            mcp_server.AdapterConfig("http://127.0.0.1:9", "agent-x", "t", 5.0)
+        )
+        assert adapter._initialize_result({})["instructions"] == "(new instructions)"
+        sent = []
+        adapter._transport = type("T", (), {"send": lambda self, payload: sent.append(payload)})()
+        adapter._dispatch({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert sent[0]["result"]["tools"][0]["description"] == "(new description)"

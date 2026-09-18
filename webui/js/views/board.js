@@ -4,7 +4,7 @@
 import { html, useEffect, useRef, useState } from "../../vendor/htm-preact-standalone.module.js";
 import {
   store, select, setPanelMax, teamAgents, isOperatorLine, isInactive, hasNewActivity, unreadWith, agentName,
-  operatorLineWith, currentTeam, applyTeams,
+  operatorLineWith, currentTeam, applyTeams, applySettings,
 } from "../store.js";
 import { useStore, fmtAgo, minutesSince } from "../ui.js";
 import { Conversation } from "../conversation.js";
@@ -187,6 +187,20 @@ function StaleShiftQuestion({ onDismiss }) {
 
 // The shift pill (design §8.1, D23): one element that is both the Team-mode display and
 // the daily control — start the whole team, watch it come up, end the working day.
+// The team-wide brake (design communication-protocols.md section 7.4): one control holds
+// the next message on every agent line, and releases them back to the default. Beside
+// the shift pill because it is the other team-wide gesture; red while on, so a braked
+// team is never mistaken for a quiet one.
+function Brake() {
+  useStore();
+  const on = Boolean(store.settings?.brake);
+  const toggle = () =>
+    api.brake(!on).then(() => api.settings()).then(applySettings).catch((e) => alert(e.message));
+  return html`<button class=${"shift-pill brake" + (on ? " on" : "")}
+    title=${on ? "every agent line is supervised: click to return them to the default" : "hold the next message on every agent line for your verdict"}
+    onClick=${toggle}>${on ? "■ Brake on" : "Brake"}</button>`;
+}
+
 function ShiftPill() {
   const shift = store.shift;
   const [, bump] = useState(0);
@@ -385,7 +399,7 @@ export function Board() {
 
   return html`
     <div class="board-panel panel-team ${checking ? "checking" : ""}" style=${panelStyle("team")}>
-      <div class="eyebrow-row"><div class="eyebrow">Team${currentTeam()?.name ? ` · ${currentTeam().name}` : ""}</div><${ShiftPill} /></div>
+      <div class="eyebrow-row"><div class="eyebrow">Team${currentTeam()?.name ? ` · ${currentTeam().name}` : ""}</div><span class="shift-group"><${Brake} /><${ShiftPill} /></span></div>
       <div class="team">
         ${currentTeam() || team.length
           ? html`${team.map((a) => html`<${AgentCard} key=${a.id} agent=${a} />`)}

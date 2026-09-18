@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
+from courtyard import texts
 from courtyard.common.models import Agent, AttachSummary, LineSummary, Message
 from courtyard.hub.core.deliver import Deliverer
 from courtyard.hub.core.envelope import delivery_check_body, with_rendering
@@ -307,10 +308,7 @@ class ChannelService:
             sender=None,
             recipient=None,  # log-only board entry
             kind="system",
-            body=(
-                f"agent {agent.name!r} attached a new channel while its previous one was "
-                "still connected — two sessions may be claiming this identity"
-            ),
+            body=texts.render("notices.board.channel_replaced", agent=agent.name),
             reply_to=None,
             status="delivered",
         )
@@ -331,10 +329,7 @@ class ChannelService:
                 sender=None,
                 recipient=None,  # log-only board entry
                 kind="system",
-                body=(
-                    f"the message (seq {message.seq}) was delivered to a previous "
-                    f"session of {agent.name} and never answered — redelivered"
-                ),
+                body=texts.render("notices.board.redelivered", seq=message.seq, agent=agent.name),
                 reply_to=message.id,
                 status="delivered",
                 thread_id=message.thread_id,
