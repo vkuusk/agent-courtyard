@@ -12,6 +12,10 @@ note:
   returned: Your note to the team's memory ({excerpt!r}) was returned to you.
   dropped: Your note to the team's memory ({excerpt!r}) was dropped (do not resend it).
   comment: ' Operator''s comment: {note}'
+line:
+  released: 'The operator released your line with {peer}: the message awaiting a reply will not be answered, and the open thread ended. Nothing is owed on this line now; the next ask opens a new thread.'
+  expired: 'The shift ended with your line with {peer} unfinished: the message in flight and the open thread expired. Nothing is owed on this line now; the next ask opens a new thread.'
+  expired_thread: 'The shift ended: the open thread on your line with {peer} expired. The next ask opens a new thread.'
 board:
   released: line released to idle by the operator
   expired_held: the message held at the gate expired at end of shift

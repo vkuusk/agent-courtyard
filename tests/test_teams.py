@@ -303,7 +303,7 @@ def test_selecting_a_team_projects_cards_and_links(bare_client):
     lines = _lines_by_pair(client)
     assert set(lines) == {frozenset(("infra", "tf-dev")), frozenset(("infra", "scribe"))}
     assert lines[frozenset(("infra", "tf-dev"))]["mode"] == "auto_pass"
-    assert lines[frozenset(("infra", "scribe"))]["mode"] == "supervised"  # the default
+    assert lines[frozenset(("infra", "scribe"))]["mode"] == "auto_pass"  # the default (D6)
     # the declared discovery regime landed on the Settings dial
     assert client.get("/api/settings").json()["discovery"] == "manual"
     # projection found nothing to complain about, and reloading is idempotent
@@ -323,7 +323,7 @@ def test_reload_mirrors_the_files_and_reasserts_declared_modes(client, tmp_path)
     declared = lines[frozenset(("infra", "tf-dev"))]  # auto_pass in the charter
     undeclared = lines[frozenset(("infra", "scribe"))]  # no mode in the charter
     client.post(f"/api/lines/{declared['id']}/mode", json={"mode": "supervised"})
-    client.post(f"/api/lines/{undeclared['id']}/mode", json={"mode": "auto_pass"})
+    client.post(f"/api/lines/{undeclared['id']}/mode", json={"mode": "supervised"})
     assert client.post(f"/api/teams/{team_id}/reload").status_code == 200
     infra = _agents_by_name(client)["infra"]
     assert infra["description"] == "Now runs GCP too."
@@ -331,7 +331,7 @@ def test_reload_mirrors_the_files_and_reasserts_declared_modes(client, tmp_path)
     lines = _lines_by_pair(client)
     # a declared mode is reasserted; an undeclared line keeps the operator's dial
     assert lines[frozenset(("infra", "tf-dev"))]["mode"] == "auto_pass"
-    assert lines[frozenset(("infra", "scribe"))]["mode"] == "auto_pass"
+    assert lines[frozenset(("infra", "scribe"))]["mode"] == "supervised"
     # declared discovery is reasserted over an Admin flip the same way
     client.patch("/api/settings", json={"discovery": "auto"})
     assert client.post(f"/api/teams/{team_id}/reload").status_code == 200

@@ -42,6 +42,18 @@ def test_tool_results_worded_by_the_hub():
                 ("send: delivered", results.send(message("delivered"), "bob")),
                 ("send: held at the gate", results.send(message("pending_gate"), "bob")),
                 ("send: recipient not connected", results.send(message("queued"), "bob")),
+                (
+                    "send: an answer, delivered",
+                    results.send(message("delivered", reply_to=UUID(int=3)), "bob"),
+                ),
+                (
+                    "send: an answer, recipient not connected",
+                    results.send(message("queued", reply_to=UUID(int=3)), "bob"),
+                ),
+                (
+                    "send: an answer, held at the gate",
+                    results.send(message("pending_gate", reply_to=UUID(int=3)), "bob"),
+                ),
                 ("close", results.close("bob")),
                 ("ack: confirmed", results.ack(True)),
                 ("ack: check no longer open", results.ack(False)),
@@ -58,7 +70,7 @@ class StubClient:
         self.send_result: Message | Exception = message("delivered", result="(the hub's wording)")
         self.inbox_result: list[Message] = []
 
-    def send(self, to, body, new_thread=False):
+    def send(self, to, body, new_thread=False, serves=None):
         if isinstance(self.send_result, Exception):
             raise self.send_result
         return self.send_result

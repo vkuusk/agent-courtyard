@@ -104,7 +104,10 @@ class TestEndShiftClosesTheBooks:
         assert {m["id"]: m["status"] for m in line_messages(client, msg["line_id"])}[
             msg["id"]
         ] == "expired"
-        assert pull_inbox(client, "bob", bob_token) == []  # expired is not queued
+        pulled = pull_inbox(client, "bob", bob_token)
+        assert msg["id"] not in {m["id"] for m in pulled}  # expired is not queued
+        (notice,) = pulled  # what bob does get: the notice that the shift ended the line
+        assert notice["kind"] == "system" and "The shift ended" in notice["body"]
 
     def test_settled_lines_are_left_alone(self, client, make_agent):
         # Settled means idle AND thread-closed (D34): alice accepted bob's answer.
@@ -147,11 +150,12 @@ class TestRearmOnAttach:
 
         summary = attach(client, "bob", bob_token)
 
-        assert summary["queued"] == 0
+        assert summary["queued"] == 1  # the notice that the shift ended the line, nothing else
         assert {m["id"]: m["status"] for m in line_messages(client, msg["line_id"])}[
             msg["id"]
         ] == "expired"
-        assert pull_inbox(client, "bob", bob_token) == []
+        pulled = pull_inbox(client, "bob", bob_token)
+        assert [m["kind"] for m in pulled] == ["system"]  # the shift-end notice, not the message
 
     def test_answered_messages_are_left_alone(self, client, make_agent):
         _, alice = make_agent("alice")

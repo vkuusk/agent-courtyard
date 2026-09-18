@@ -106,7 +106,8 @@ def test_a_question_carries_the_reply_footer():
     host reframing or deferring the MCP instructions."""
     text = render(fake_message("do you have a terragrunt tree?"))
     assert "courtyard MCP tool `courtyard_send`" in text
-    assert "terminal never reaches the sender" in text
+    assert "the sender reads nothing printed\nin your terminal" in text
+    assert "reaches nobody" not in text  # false when a user is typing in that terminal
     assert "no trailing offers" in text  # items 3.3/7.1 in the same footer
     assert "saying what blocks you" in text  # item 22: report a permission block, don't stall
     assert text.index("terragrunt") < text.index("courtyard_send")  # footer after the body
@@ -119,8 +120,24 @@ def test_an_answer_closes_only_the_exchange_with_its_sender():
     text = render(fake_message("yes, it is in ./infra", reply_to=uuid4()))
     assert "your exchange with infra is complete" in text
     assert "infra nothing further" in text
-    assert "someone else's behalf" in text and "courtyard_send" in text
-    assert "terminal never reaches the sender" not in text
+    assert "the sender reads nothing" not in text
+
+
+def test_an_answer_states_whom_the_recipient_owes_a_reply():
+    """Item 45: "if you asked on someone else's behalf, deliver them the answer" sent the
+    answer to a request typed in a terminal onto the board; the model cannot see where a
+    request came from. The footer states what the hub knows instead (design
+    communication-protocols.md section 6.3)."""
+    answer = fake_message("yes, it is in ./infra", reply_to=uuid4())
+    nobody = render(answer, owed=[])
+    assert "Nobody on the board is waiting on you" in nobody
+    assert "typed in your terminal" in nobody and "answer it there" in nobody
+    assert render(answer) == nobody  # no lookup given reads as nobody waiting
+    owing = render(answer, owed=["operator", "tf-agent"])
+    assert "You still owe a reply on the board to: operator, tf-agent." in owing
+    assert "courtyard_send" in owing and "answer there" in owing
+    assert "someone else's behalf" not in owing + nobody  # the relay rule is gone
+    assert "owe a reply" not in render(fake_message("a question"), owed=["operator"])
 
 
 def test_operator_note_carries_the_note_footer():
@@ -130,7 +147,7 @@ def test_operator_note_carries_the_note_footer():
     text = render(fake_message("fyi", kind="operator_note", sender="operator", sender_type="human"))
     assert "needs no separate reply" in text
     assert "courtyard MCP tool" in text and "courtyard_send" in text
-    assert "reaches nobody" in text
+    assert "the operator reads nothing printed in your terminal" in text
 
 
 def test_system_messages_carry_no_footer():
@@ -184,11 +201,11 @@ def test_delivery_check_body_names_the_tool_and_the_token():
     assert "courtyard_ack" in text and '"tok-123"' in text
     # D40: an expected step of the operator's shift, never a secret — "tell no one, do
     # nothing else" read as prompt injection to a session without context (2026-09-10)
-    assert "operator has started a shift" in text
+    assert "the team's shift is on" in text  # sent at any attach during a shift
     assert "Do nothing else" not in text and "tell no one" not in text.lower()
     # no reason to report it, and no list of prohibitions: a pi session took "You may
     # mention it to your operator" as a message to send (2026-09-11)
-    assert "your operator sees the result on the board" in text
+    assert "the operator sees the result on the board" in text
     assert "mention it to your operator" not in text and "no message to anyone" not in text
     # the MCP name only where the tool is an MCP tool
     assert "mcp__courtyard__courtyard_ack" in text
@@ -205,8 +222,8 @@ def test_the_delivery_check_has_its_own_preamble():
     text = render(check, delivery_check=True)
     assert 'authority="hub-notice"' in text
     assert "A delivery check from the courtyard hub itself" in text
-    assert "It is not a request" not in text
-    assert "It is not a request" in render(check)  # every other hub notice keeps it
+    assert "asks nothing of you" not in text
+    assert "asks nothing of you unless it says what to do" in render(check)  # other notices
 
 
 def test_footers_name_the_tools_the_way_the_recipients_host_lists_them():
@@ -220,7 +237,7 @@ def test_footers_name_the_tools_the_way_the_recipients_host_lists_them():
         message = fake_message("x", kind=kind, reply_to=reply_to).model_copy(
             update={"recipient_type": "pi"}
         )
-        text = render(message)
+        text = render(message, owed=["operator"])  # an answer names the tool when a reply is owed
         assert (
             "courtyard tool `courtyard_send`" in text or "courtyard tool\n`courtyard_send`" in text
         )
@@ -233,12 +250,15 @@ def test_preview_covers_every_variant_and_is_deterministic():
 
     blocks = preview()
     titles = [b["title"] for b in blocks]
-    assert len(titles) == len(set(titles)) == 8
+    assert len(titles) == len(set(titles)) == 9
     by_title = {b["title"]: b["text"] for b in blocks}
     assert "courtyard_send" in by_title["A question from a peer"]  # the reply footer
     # the closing footers (D34): the initiator is pointed at the close tool, a
     # non-initiator gets the plain exchange-complete wording
     assert "courtyard_close_thread" in by_title["An answer from a peer"]
+    assert "Nobody on the board is waiting" in by_title["An answer from a peer"]
+    owing = by_title["An answer, while you owe replies on the board"]
+    assert "owe a reply on the board to: infra-agent, operator" in owing
     assert "is complete" in by_title["An answer to someone else's thread"]
     assert "courtyard_close_thread" not in by_title["An answer to someone else's thread"]
     assert "(what the sender owns)" in by_title["A question from a domain owner"]
@@ -258,6 +278,6 @@ def test_envelope_api_serves_the_blocks_plus_adapter_instructions(client):
     titles = [b["title"] for b in blocks]
     assert titles[-1] == "The adapter instructions"
     assert titles[-2] == "A recall listing"  # hub memory: what a recall costs (item 29)
-    assert len(titles) == 10
+    assert len(titles) == 11
     assert all(b["text"].strip() and b["note"].strip() for b in blocks)
     assert all(b["overhead_tokens"] > 0 for b in blocks)

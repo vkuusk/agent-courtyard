@@ -16,7 +16,16 @@ from courtyard.common.models import Message
 def send(message: Message, to: str) -> str:
     """The outcome of a send, from the status the hub gave the message. `to` is the
     recipient as the sender named it."""
-    outcome = {"pending_gate": "held", "delivered": "delivered"}.get(message.status, "accepted")
+    if message.status == "pending_gate":
+        outcome = "held"
+    elif message.recipient_type == "human" and message.reply_to is None:
+        # a report to the operator: delivered, and nothing is waited for (section 7.5)
+        outcome = "to_operator"
+    else:
+        outcome = "delivered" if message.status == "delivered" else "accepted"
+        if message.reply_to is not None:
+            # an answer leaves nobody waiting on this line: say so (section 3.3)
+            outcome += "_answer"
     return texts.render(f"results.send.{outcome}", seq=message.seq, to=to)
 
 

@@ -21,6 +21,7 @@ class SendRequest(BaseModel):
     to: str  # recipient name or id; the sender is the token owner
     body: str
     new_thread: bool = False  # the sender's boundary declaration (D34)
+    serves: str | None = None  # the participant whose open thread this ask serves (threads.md §3)
 
 
 class CloseThreadRequest(BaseModel):
@@ -41,13 +42,17 @@ class LinkRequest(BaseModel):
     b: str
 
 
+class BrakeRequest(BaseModel):
+    on: bool
+
+
 @router.post("/send", status_code=201)
 def send(
     body: SendRequest,
     sender: Annotated[Agent, Depends(require_agent)],
     board: Annotated[Board, Depends(get_board)],
 ) -> Message:
-    message = board.send(sender, body.to, body.body, body.new_thread)
+    message = board.send(sender, body.to, body.body, body.new_thread, body.serves)
     return message.model_copy(update={"result": results.send(message, body.to)})
 
 
@@ -61,6 +66,14 @@ def close_thread(
     declares the ask settled. No message, no note — the close is the whole event."""
     thread = board.close_thread(closer, body.peer)
     return thread.model_copy(update={"result": results.close(body.peer)})
+
+
+@router.post("/brake")
+def brake(body: BrakeRequest, board: Annotated[Board, Depends(get_board)]) -> dict:
+    """The team-wide brake (communication-protocols.md 7.4): every agent line to
+    supervised and back. Returns the lines whose mode changed; the flag itself is read
+    from /api/settings."""
+    return {"on": body.on, "changed": board.brake(body.on)}
 
 
 @router.post("", status_code=201)

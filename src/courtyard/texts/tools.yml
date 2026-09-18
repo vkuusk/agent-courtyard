@@ -21,6 +21,9 @@ definitions:
       new_thread:
         type: boolean
         description: declare that this message starts a NEW independent ask, unrelated to the exchange in progress. Refused while a thread with this peer is still open — close yours first, or leave this unset to continue the open thread.
+      serves:
+        type: string
+        description: the name of the participant whose open thread with you this ask serves. Use it when you ask on behalf of an exchange you take part in, so the hub can tell you whom the answer is for. Refused when you have no open thread with them; leave it out for an ask of your own.
     required:
     - to
     - message

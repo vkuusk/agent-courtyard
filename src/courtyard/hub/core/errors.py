@@ -62,6 +62,14 @@ class ThreadStillOpen(DomainError):
     code = "thread_open"
 
 
+class NoServedThread(DomainError):
+    """A send declared the thread it serves (`serves`) but the sender has no open thread
+    with that participant: refused like a declared new ask on an open thread, since the
+    hub never drops a declaration silently or guesses which thread was meant."""
+
+    code = "no_served_thread"
+
+
 class NoOpenThread(DomainError):
     """Close called on a line with no open thread — nothing to close."""
 

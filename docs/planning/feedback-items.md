@@ -1459,7 +1459,21 @@ To build, in this order (step 1 done 2026-09-17: `src/courtyard/texts`, goldens 
 `tests/texts/golden`, tool results worded by the hub, both adapters fetching their texts;
 the one wording change it made is that a refusal reads the same in both adapters, without
 the id lines the Claude Code adapter used to append; pi's source confirms that a tool
-registered during `session_start` is in the first request, a live pi check is still owed):
+registered during `session_start` is in the first request, a live pi check is still owed.
+Step 2 done 2026-09-17: every text reworded, the owed-reply statement computed at
+delivery (`hub/core/owed.py`), the send result stating the line's state; its case 1
+and the "no answer to be expected" result wait for step 3. Step 3 done 2026-09-17: auto-pass
+default (the test hubs set supervised explicitly, `conftest.start_supervised`); an
+agent's report to the operator awaits nothing and closes its thread at once (`turns.py`
+`awaits_reply`); release ends the thread `locked`, release and expiry notices to both
+agents (`board.participant_notices`); `serves` (migration 0025, `Thread.serves`,
+`hub/core/owed.py` `served_thread`, refusal `no_served_thread`); the team-wide brake
+(`Settings.brake`, `POST /api/lines/brake`, the Brake button beside the shift pill).
+Not built: the WebUI thread dividers naming served threads, and the served-thread link
+in case files (threads.md, hub-memory.md). Step 4 done 2026-09-17: README, quickstart
+(the walkthrough now presses Brake to see the gate), user guide (working in an agent's
+terminal, the brake, reports to the operator, release notices, `serves`); a live check on
+the home-lab team is owed):
 1. The texts package (`communication-protocols.md` section 8): first generate golden
    files from the current code, then move every model-facing text into `courtyard/texts`
    as a pure refactor that the golden tests prove; tool results rendered by the hub;

@@ -1,11 +1,20 @@
 ===== send: delivered =====
-Delivered to bob (seq 7). This line is now awaiting their reply — do not send to bob again until they answer.
+Delivered to bob (seq 7). This line now awaits their reply: do not send to bob again until they answer.
 
 ===== send: held at the gate =====
-Held at the gate for the operator's approval (seq 7); it has not reached bob yet. Wait — you will be told if it is returned or dropped.
+Held at the gate for the operator's approval (seq 7); it has not reached bob yet. Wait: you will be told if it is returned or dropped.
 
 ===== send: recipient not connected =====
-Accepted (seq 7); bob is not connected right now, so the hub will hand it over when they attach. The line is awaiting their reply.
+Accepted (seq 7); bob is not connected right now, so the hub will hand it over when they attach. The line awaits their reply.
+
+===== send: an answer, delivered =====
+Delivered to bob (seq 7). That answers their message: nobody owes a reply on this line now, and the thread stays open until its initiator closes it.
+
+===== send: an answer, recipient not connected =====
+Accepted (seq 7); bob is not connected right now, so the hub will hand it over when they attach. That answers their message: nobody owes a reply on this line now.
+
+===== send: an answer, held at the gate =====
+Held at the gate for the operator's approval (seq 7); it has not reached bob yet. Wait: you will be told if it is returned or dropped.
 
 ===== close =====
 Thread closed; the hub has told bob. A new ask with bob may start now.

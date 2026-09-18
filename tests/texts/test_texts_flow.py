@@ -83,6 +83,18 @@ def test_notices_board_entries_and_refusals(client, make_agent):
     assert closed["result"].startswith("Thread closed")
     s.refused("close with no open thread", "POST", "/api/lines/close-thread", "alice", peer="bob")
     s.refused("close on your own line", "POST", "/api/lines/close-thread", "alice", peer="alice")
+    s.refused(
+        "an ask serving a thread that is not open",
+        "POST",
+        "/api/lines/send",
+        "alice",
+        to="bob",
+        body="x",
+        serves="carol",
+    )
+    # a report to the operator: delivered, and nothing is waited for (section 7.5)
+    report = s.send("alice", "operator", "a report")
+    s.results = [("send: a report to the operator", report["result"])]
 
     # the budget
     s.ok("PATCH", "/api/settings", thread_budget=2)
@@ -136,3 +148,4 @@ def test_notices_board_entries_and_refusals(client, make_agent):
     entries.append(("alice and bob, after an archive", s.hub_texts(line)))
     check("notices_and_board_entries", blocks(entries))
     check("refusals", blocks(s.refusals))
+    check("tool_results_flow", blocks(s.results))

@@ -153,14 +153,16 @@ def test_pi_extension_end_to_end(live_hub, tmp_path):
         result = harness.call("courtyard_send", to="operator", message="hi back")
         assert result["event"] == "tool_result" and "Delivered to operator" in result["text"]
 
-        # A turn violation is surfaced verbatim, as a tool error the model reads:
-        # the reply above closed the exchange, this opens a new one (allowed), and
-        # a further send while the operator owes the answer is refused.
-        opened = harness.call("courtyard_send", to="operator", message="a new question")
-        assert opened["event"] == "tool_result"
-        violation = harness.call("courtyard_send", to="operator", message="impatience")
-        assert violation["event"] == "tool_error"
-        assert "courtyard hub refused" in violation["text"]
+        # A report to the operator awaits nothing (communication-protocols.md 7.3): a
+        # second one follows at once. A refusal is surfaced verbatim, as a tool error
+        # the model reads: here a send to an agent that does not exist.
+        report = harness.call("courtyard_send", to="operator", message="a report")
+        assert report["event"] == "tool_result" and "no answer is to be expected" in report["text"]
+        again = harness.call("courtyard_send", to="operator", message="another report")
+        assert again["event"] == "tool_result"
+        refused = harness.call("courtyard_send", to="nobody", message="hello?")
+        assert refused["event"] == "tool_error"
+        assert "courtyard hub refused" in refused["text"]
 
         # The delivery check (item 34) works unchanged on pi.
         admin.verify_delivery("pibot")
@@ -170,7 +172,7 @@ def test_pi_extension_end_to_end(live_hub, tmp_path):
         )
         # worded for pi (D40): the tool by its own name, and nothing asked beyond the call
         assert "MCP" not in check["message"]["content"]
-        assert "your operator sees the result on the board" in check["message"]["content"]
+        assert "the operator sees the result on the board" in check["message"]["content"]
         assert "A delivery check from the courtyard hub itself" in check["message"]["content"]
         check_token = re.search(r'token "([^"]+)"', check["message"]["content"]).group(1)
         ack = harness.call("courtyard_ack", token=check_token)

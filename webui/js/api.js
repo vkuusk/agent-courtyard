@@ -53,6 +53,7 @@ export const api = {
   linkAgents: (a, b) => call("POST", "/api/lines", { a, b }),
   unlinkLine: (lineId) => call("POST", `/api/lines/${lineId}/unlink`),
   release: (lineId) => call("POST", `/api/lines/${lineId}/release`),
+  brake: (on) => call("POST", "/api/lines/brake", { on }),
   archiveLine: (lineId) => call("POST", `/api/lines/${lineId}/archive`),
   archives: () => call("GET", "/api/archive"),
   archive: (id) => call("GET", `/api/archive/${id}`),

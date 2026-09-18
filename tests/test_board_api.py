@@ -145,9 +145,11 @@ def test_release_stuck_line(client, make_agent):
     assert released["state"] == "idle" and released["awaiting_from"] is None
 
     history = client.get(f"/api/lines/{line_id}/messages").json()
-    log = history[-1]
-    assert log["kind"] == "system" and log["recipient"] is None and log["status"] == "delivered"
-    assert "released" in log["body"]
+    board_entry, *notices = [m for m in history if m["kind"] == "system"]
+    assert board_entry["recipient"] is None and board_entry["status"] == "delivered"
+    assert "released" in board_entry["body"]
+    assert len(notices) == 2  # both agents are told (communication-protocols.md 3.1)
+    assert all("The operator released your line" in n["body"] for n in notices)
 
     # an idle line cannot be released
     resp = client.post(f"/api/lines/{line_id}/release")

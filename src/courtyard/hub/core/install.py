@@ -388,7 +388,12 @@ def pi_skill(agent_name: str) -> str:
     gate, authority grades, delivery checks. Content mirrors what the envelope
     footers teach per message, gathered in one place the model can pull when it
     starts working with the courtyard tools."""
-    return texts.render("etiquette.pi_skill", script_mark=SCRIPT_MARK, agent_name=agent_name)
+    return texts.render(
+        "etiquette.pi_skill",
+        script_mark=SCRIPT_MARK,
+        agent_name=agent_name,
+        body=adapter_texts.etiquette("pi"),
+    )
 
 
 def install_pi(

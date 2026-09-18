@@ -437,7 +437,8 @@ class CourtyardAdapter:
         body = arguments.get("message") or ""
         if not to or not body.strip():
             return _tool_result(self._local("results.required.to_and_message"), is_error=True)
-        message = self._client.send(to, body, bool(arguments.get("new_thread")))
+        serves = (arguments.get("serves") or "").strip() or None
+        message = self._client.send(to, body, bool(arguments.get("new_thread")), serves)
         return _tool_result(message.result or message.status)  # worded by the hub (D14)
 
     def _tool_close_thread(self, arguments: dict) -> dict:

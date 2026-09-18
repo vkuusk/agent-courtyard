@@ -14,6 +14,7 @@ import httpx
 from courtyard.common.models import Message
 from courtyard.hub.core.envelope import with_rendering
 from courtyard.hub.core.events import EventBus
+from courtyard.hub.core.owed import needs_owed, owed_replies, served_thread
 from courtyard.hub.storage.repo import Storage
 
 logger = logging.getLogger("courtyard.hub")
@@ -38,6 +39,10 @@ class Deliverer:
         with self._storage.transaction() as uow:
             recipient = uow.agents.get(message.recipient)
             channel = uow.channels.get(message.recipient)
+            owed = served = None
+            if needs_owed(message):
+                owed = owed_replies(uow, message.recipient)
+                served = served_thread(uow, message)
 
         # A human's tunnel is the WebUI: visible as soon as it renders, so it is delivered.
         if recipient.type == "human":
@@ -49,7 +54,7 @@ class Deliverer:
 
         # The push carries the authority-graded envelope (§7.5), rendered here so
         # every adapter presents the same text (D14).
-        pushed = self.push_raw(channel, with_rendering(message))
+        pushed = self.push_raw(channel, with_rendering(message, owed=owed, served=served))
 
         if pushed:
             return self._mark_delivered(message)

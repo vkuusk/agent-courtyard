@@ -114,10 +114,14 @@ class HubClient:
         data = self._call("POST", f"/api/agents/{self.name}/ack", {"token": token})
         return bool(data["ok"]), data.get("result")
 
-    def send(self, to: str, body: str, new_thread: bool = False) -> Message:
+    def send(
+        self, to: str, body: str, new_thread: bool = False, serves: str | None = None
+    ) -> Message:
         return Message.model_validate(
             self._call(
-                "POST", "/api/lines/send", {"to": to, "body": body, "new_thread": new_thread}
+                "POST",
+                "/api/lines/send",
+                {"to": to, "body": body, "new_thread": new_thread, "serves": serves},
             )
         )
 

@@ -54,10 +54,18 @@ def tools(agent_type: str) -> list[dict[str, Any]]:
     return out
 
 
+def etiquette(agent_type: str) -> str:
+    """The etiquette: one content for every adapter, with the adapter's declared
+    differences filled in (how deliveries arrive, which tools need no approval)."""
+    return texts.render(
+        "etiquette.body", **texts.section(f"etiquette.adapter.{_adapter(agent_type)}")
+    )
+
+
 def bundle(agent_type: str) -> dict[str, Any]:
     instructions = None
-    if _adapter(agent_type) == "claude_code":  # pi's etiquette is a skill on disk
-        instructions = texts.render("etiquette.claude_code_instructions")
+    if _adapter(agent_type) == "claude_code":  # pi reads the etiquette as a skill on disk
+        instructions = etiquette(agent_type)
     return {
         "tools": tools(agent_type),
         "instructions": instructions,

@@ -206,7 +206,7 @@ class PgLineRepo:
     def __init__(self, conn: Connection):
         self._conn = conn
 
-    def get_or_create_locked(self, a: UUID, b: UUID, mode: str = "supervised") -> Line:
+    def get_or_create_locked(self, a: UUID, b: UUID, mode: str = "auto_pass") -> Line:
         a, b = sorted((a, b))
         self._conn.execute(
             "INSERT INTO lines (id, agent_a, agent_b, mode)"
@@ -425,10 +425,12 @@ class PgThreadRepo:
     def __init__(self, conn: Connection):
         self._conn = conn
 
-    def insert(self, *, thread_id: UUID, line_id: UUID, opened_by: UUID) -> Thread:
+    def insert(
+        self, *, thread_id: UUID, line_id: UUID, opened_by: UUID, serves: UUID | None = None
+    ) -> Thread:
         self._conn.execute(
-            "INSERT INTO threads (id, line_id, opened_by) VALUES (%s, %s, %s)",
-            (thread_id, line_id, opened_by),
+            "INSERT INTO threads (id, line_id, opened_by, serves) VALUES (%s, %s, %s, %s)",
+            (thread_id, line_id, opened_by, serves),
         )
         return self.get(thread_id)
 

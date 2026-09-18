@@ -38,7 +38,14 @@ class SendPlan:
     track_new_message: bool  # True -> line.in_flight_msg becomes the new message's id
 
 
-def plan_message_send(line: TurnState, sender: UUID, recipient: UUID) -> SendPlan:
+def plan_message_send(
+    line: TurnState, sender: UUID, recipient: UUID, awaits_reply: bool = True
+) -> SendPlan:
+    """`awaits_reply=False` is the operator's lines in one direction (design
+    communication-protocols.md section 7.3): an agent's own message to the operator is
+    delivered and leaves the line idle. The operator reads reports and answers when there
+    is something to say; a line waiting on the operator would block the agent's next
+    report. The operator's messages, and every agent-to-agent message, take turns."""
     if line.state == "pending_gate":
         raise GatePendingBlock(
             texts.render("refusals.gate_pending.send"),
@@ -58,6 +65,8 @@ def plan_message_send(line: TurnState, sender: UUID, recipient: UUID) -> SendPla
     if reply_to is not None:
         # auto-pass reply delivered -> exchange complete, line returns to idle
         return SendPlan("queued", reply_to, "idle", None, False)
+    if not awaits_reply:
+        return SendPlan("queued", None, "idle", None, False)
     return SendPlan("queued", None, "awaiting_reply", recipient, True)
 
 

@@ -11,6 +11,7 @@ gate_pending:
   close: a message on this line is awaiting the operator's gate decision; the thread cannot close until it is decided
 thread_open: a thread is still open on your line with {name!r}; a new ask begins only after it is closed. Send without new_thread to continue the open thread, or — if you opened it and the ask is settled — close it first
 thread_locked: the thread with {name!r} reached its exchange budget ({budget} messages) and the hub has locked it; {plain_name} was told. Your message was NOT sent. Do not restate the same ask in a new thread — if it truly needs more exchanges, involve your operator. A genuinely different ask may be sent now; it opens a new thread.
+no_served_thread: you have no open thread with {name!r} for this ask to serve; leave `serves` out, or name the participant whose open thread with you this ask serves
 no_open_thread: no open thread on your line with {name!r}
 not_thread_initiator: this thread was opened by {name!r}; only its initiator closes it — answer with a message instead
 body_too_large: message body exceeds {limit} bytes

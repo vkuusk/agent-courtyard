@@ -1,0 +1,2 @@
+===== send: a report to the operator =====
+Delivered to operator (seq 1): received, and no answer is to be expected. The operator will write to you if needed.

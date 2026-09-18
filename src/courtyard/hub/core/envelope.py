@@ -119,7 +119,29 @@ def _tool_label(message: Message) -> str:
     return texts.render("envelope.tool_label.other")
 
 
-def render(message: Message, *, delivery_check: bool = False) -> str:
+def _owed(names: list[str] | None, tool: str, served: tuple[str, str] | None = None) -> str:
+    """The owed-reply statement (design communication-protocols.md section 6.3): the
+    thread the answered ask served, else whom the recipient still owes a reply on the
+    board, else that nobody there is waiting."""
+    if served is not None:
+        name, state = served
+        if state == "open":
+            return texts.render("envelope.owed.served", name=name, tool=tool)
+        return texts.render("envelope.owed.served_ended", name=name, state=state)
+    if names and len(names) == 1:
+        return texts.render("envelope.owed.one", name=names[0], tool=tool)
+    if names:
+        return texts.render("envelope.owed.several", names=", ".join(names), tool=tool)
+    return texts.render("envelope.owed.none")
+
+
+def render(
+    message: Message,
+    *,
+    delivery_check: bool = False,
+    owed: list[str] | None = None,
+    served: tuple[str, str] | None = None,
+) -> str:
     """Render one message as its delivery envelope.
 
     Attribute values are hub-authored (agent names match the registry's
@@ -135,9 +157,16 @@ def render(message: Message, *, delivery_check: bool = False) -> str:
         if message.reply_to is None:
             text = texts.render("envelope.footer.reply", tool=tool)
         elif message.thread_opened_by is not None and message.thread_opened_by == message.recipient:
-            text = texts.render("envelope.footer.closing_initiator", sender=sender, tool=tool)
+            text = texts.render(
+                "envelope.footer.closing_initiator",
+                sender=sender,
+                tool=tool,
+                owed=_owed(owed, tool, served),
+            )
         else:
-            text = texts.render("envelope.footer.closing", sender=sender, tool=tool)
+            text = texts.render(
+                "envelope.footer.closing", sender=sender, owed=_owed(owed, tool, served)
+            )
         footer = texts.render("envelope.footer_block", text=text)
     elif message.kind == "operator_note":
         footer = texts.render(
@@ -162,9 +191,21 @@ def render(message: Message, *, delivery_check: bool = False) -> str:
     )
 
 
-def with_rendering(message: Message, *, delivery_check: bool = False) -> Message:
-    """The message as an agent receives it: the same record, plus `rendered`."""
-    return message.model_copy(update={"rendered": render(message, delivery_check=delivery_check)})
+def with_rendering(
+    message: Message,
+    *,
+    delivery_check: bool = False,
+    owed: list[str] | None = None,
+    served: tuple[str, str] | None = None,
+) -> Message:
+    """The message as an agent receives it: the same record, plus `rendered`. `owed` is
+    whom the recipient owes a reply on the board at this moment, `served` the thread the
+    answered ask declared (hub/core/owed.py)."""
+    return message.model_copy(
+        update={
+            "rendered": render(message, delivery_check=delivery_check, owed=owed, served=served)
+        }
+    )
 
 
 # What the envelope costs, for the Admin page: modern tokenizers average about four
@@ -212,8 +253,18 @@ def preview() -> list[dict[str, str | int]]:
         ),
         (
             "An answer from a peer",
-            "the reply to your ask — as the thread's initiator you are pointed at the close tool",
+            (
+                "the reply to your ask: as the thread's initiator you are pointed at the close "
+                "tool, and told that nobody on the board is waiting on you"
+            ),
             sample(reply_to=UUID(int=3), thread_id=UUID(int=4), thread_opened_by=UUID(int=2)),
+            {"owed": []},
+        ),
+        (
+            "An answer, while you owe replies on the board",
+            "the same answer when other participants are waiting for you: they are named",
+            sample(reply_to=UUID(int=3), thread_id=UUID(int=4), thread_opened_by=UUID(int=2)),
+            {"owed": ["infra-agent", "operator"]},
         ),
         (
             "An answer to someone else's thread",
@@ -266,12 +317,12 @@ def preview() -> list[dict[str, str | int]]:
                 seq=0,
                 body=delivery_check_body("(token)"),
             ),
-            True,  # its own preamble
+            {"delivery_check": True},  # its own preamble
         ),
     ]
     blocks: list[dict[str, str | int]] = []
-    for title, note, message, *check in entries:
-        text = render(message, delivery_check=bool(check))
+    for title, note, message, *options in entries:
+        text = render(message, **(options[0] if options else {}))
         # Hub-authored end to end (sender None): the whole text is the overhead.
         # Otherwise: the envelope around the body, so the placeholder body comes off.
         wrapper = text if message.sender is None else text.replace(message.body, "", 1)

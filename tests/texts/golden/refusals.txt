@@ -28,6 +28,9 @@ The courtyard hub refused: [no_open_thread] no open thread on your line with 'bo
 ===== close on your own line =====
 The courtyard hub refused: [invalid_recipient] you have no line with yourself
 
+===== an ask serving a thread that is not open =====
+The courtyard hub refused: [no_served_thread] you have no open thread with 'carol' for this ask to serve; leave `serves` out, or name the participant whose open thread with you this ask serves
+
 ===== budget spent =====
 The courtyard hub refused: [thread_locked] the thread with 'bob' reached its exchange budget (2 messages) and the hub has locked it; bob was told. Your message was NOT sent. Do not restate the same ask in a new thread — if it truly needs more exchanges, involve your operator. A genuinely different ask may be sent now; it opens a new thread.
 

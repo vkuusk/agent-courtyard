@@ -175,6 +175,8 @@ def create_app(config: Config | None = None) -> FastAPI:
             default_line_mode=lambda: shift.get_settings().default_line_mode,
             discovery=discovery,
             thread_budget=lambda: shift.get_settings().thread_budget,
+            brake=lambda: shift.get_settings().brake,
+            set_brake=lambda on: shift.update_settings({"brake": on}),
         )
         # Hub memory (hub-memory.md): recall reads through the same settings and discovery
         # dial as the board; the case files themselves are written by the board at close.

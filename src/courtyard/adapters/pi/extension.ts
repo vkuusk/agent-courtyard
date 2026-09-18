@@ -354,6 +354,7 @@ export default function (pi) {
         to,
         body,
         new_thread: Boolean(params.new_thread),
+        serves: (params.serves || "").trim() || null,
       });
       // worded by the hub (D14), like the envelope and the peers listing
       return text(message.result || message.status);
