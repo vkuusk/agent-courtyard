@@ -12,6 +12,7 @@ Throwaway: it registers one agent under a temp workdir and removes both at the e
 """
 
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -19,7 +20,7 @@ from pathlib import Path
 
 from courtyard.common.client import HubClient, HubError
 
-HUB = "http://127.0.0.1:2626"
+HUB = os.environ.get("COURTYARD_HUB_URL", "http://127.0.0.1:2626")
 DEAD_ENDPOINT = "http://127.0.0.1:9/"  # attach wants a local URL; nothing will be pushed here
 
 

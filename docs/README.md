@@ -1,127 +1,27 @@
 # Documentation
 
-The root [README](../README.md) gets you running; this page is the map for everything
-deeper.
+The root [README](../README.md) gets you running. This directory holds the rest.
 
-## How it works, briefly
+## Manuals
 
-One Python hub (FastAPI + Postgres) owns all state: the agent registry, the per-pair
-**lines**, every message, and the liveness picture. Agents connect through a small MCP
-adapter riding Claude Code's channels preview: the hub pushes deliveries into the
-agent's session and the agent answers with a `courtyard_send` tool call; nothing an
-agent prints in its terminal reaches anyone. The operator usually works in the main
-agent's terminal, delegating through it; the WebUI (a no-build Preact page served by
-the hub, fed by server-sent events) is where the team is watched and gated.
-
-The core ideas, each with its section in the design doc:
-
-- **Lines and turns**: between any pair of agents there is one line, and on it at most
-  one unanswered message in flight. Turn-taking is backpressure the models can reason
-  about (§5.2, §5.4).
-- **The gate**: each line is `supervised` (every message held for the operator's
-  approve / return-to-sender / drop) or `auto_pass` (flows, still logged). Operator
-  lines are never gated (§5.5, §5.6).
-- **The envelope**: the hub wraps every delivery with an authority grade (operator /
-  domain-owner / agent / hub-notice) and a reply-path footer, so the receiving model
-  knows how much say the text has and how to answer so the sender actually hears it
-  (§7.5).
-- **The shift**: one button opens a terminal per registered agent and connects the
-  team; ending the shift closes exactly those windows and expires unfinished
-  conversations, so the books close with the working day (§8.1).
-- **Discovery**: `auto` (any pair may start talking; lines form on first message) or
-  `manual` (agents see and reach only whom the operator has linked, forming sub-teams) (§5.8).
-- **The archive**: finished or unlinked conversations move to an immutable archive;
-  the WebUI shows only live lines (§5.7).
-- **Memory**: a closed thread becomes a case file, agents leave notes that pass the
-  gate, and `courtyard_recall` brings both back into an agent's context, bounded
-  (`design/hub-memory.md`, D37).
-
-## The documents
-
-| Document | What it holds |
+| Doc | Short description |
 |---|---|
-| [quickstart.md](quickstart.md) | Install + a worked example with two real Claude Code agents, every screen described: the permanent "new operator" path |
-| [user-guide.md](user-guide.md) | The operator's reference: installation, teams and agents, lines and the gate, the shift, the Admin page |
-| [design/architecture-v1.md](design/architecture-v1.md) | The full design: concepts, delivery model, liveness, the shift, and a decision log (§13) recording every choice with its reasons |
-| [design/adapter-implementation.md](design/adapter-implementation.md) | Implementation decisions for the Claude Code adapter: one stdio process per agent, why no MCP SDK, threading, delivery and resilience choices |
-| [design/team-charter.md](design/team-charter.md) | The team defined as files: charter directory, agent cards, topology, projection into the hub (accepted, D33; a worked example lives in `examples/team-charters/`) |
-| [design/threads.md](design/threads.md) | Threads, the quant of conversation: one bounded exchange about one ask, its lifecycle and enforcement (accepted and implemented, D34) |
-| [design/hub-memory.md](design/hub-memory.md) | Hub memory: case files at thread close, notes through the gate, recall, similarity search behind the same door (accepted, D37; slice 4 open) |
-| [planning/next-features-list.md](planning/next-features-list.md) | Postponed features, listed without versions, each pointing at its reasoning |
-| [planning/ideas-to-review.md](planning/ideas-to-review.md) | Ideas not decided or scheduled, each with the mechanism that would carry it and what it would revisit |
-| [planning/v1-implementation-steps.md](planning/v1-implementation-steps.md) | The build, step by step, with what changed and when |
-| [planning/feedback-items.md](planning/feedback-items.md) | The architect's live-testing observations and what became of each |
-| [testing-runbook.md](testing-runbook.md) | Manual verification procedures per feature, backed by scripts in `scripts/runbook/` |
-| [developer-notes.md](developer-notes.md) | Standing engineering conventions for working on the code |
+| [quickstart.md](quickstart.md) | A first run with two agents, every screen described |
+| [user-guide.md](user-guide.md) | The operator's reference: every feature, where it is and what it does |
+| [development.md](development.md) | Development setup, conventions, releasing |
+| [testing.md](testing.md) | How testing works, and the manual verification procedure of each feature |
 
-## Development setup
+## Design
 
-The basics are in the root README (`uv sync`, then `make run`, which brings postgres up itself). The notes
-below matter once you work on the code.
+| Doc | Short description |
+|---|---|
+| [architecture-v1.md](design/architecture-v1.md) | The full design: concepts, delivery, liveness, the shift, and a log of every decision with its reasons |
+| [communication-protocols.md](design/communication-protocols.md) | How messages move: who sends to whom, what the hub adds, what each model is shown |
+| [threads.md](design/threads.md) | A thread: one bounded exchange about one ask, its lifecycle and enforcement |
+| [team-charter.md](design/team-charter.md) | The team defined as files: charter directory, agent cards, links |
+| [hub-memory.md](design/hub-memory.md) | Team memory: case files, notes, recall, similarity search |
+| [adapter-implementation.md](design/adapter-implementation.md) | Implementation decisions of the Claude Code adapter |
+| [use-cases-explained.md](design/use-cases-explained.md) | "How does this actually work?" answers, one use case at a time |
 
-**The demo, in more detail.** The demo exists to exercise the hub end to end with
-scripted agents; the root README offers it as a preview of the gate before any real
-agents are connected. `make demo` starts the hub (unless one is running) plus
-scripted dummy agents; runtime files and process logs land in `.demo/` (gitignored).
-Each run registers a fresh cast with unique name suffixes, and the cast cleans up after
-itself: both `make demo-stop` and a re-run remove the previous cast from the WebUI and
-delete its throwaway archives, so the WebUI looks the way it did before the demo. The
-demo pre-links its pairs and pins them supervised, so it runs the same whatever the
-operator's Discovery / Defaults settings say. It ends with instructions for playing an
-agent yourself from a second terminal (`courtyard-dummy --behavior manual`, then
-`/pending`, `/approve`, `/auto`, `/help`, …).
-
-**Python version.** Pinned in `.python-version` as `3.14`, deliberately minor-only
-rather than `3.14.x`, so homebrew patch upgrades keep matching the pin instead of fighting it.
-Note that `.venv` does **not** contain its own Python: on macOS every venv tool (venv,
-virtualenv/PyCharm, uv) symlinks the interpreter, here via brew's `opt/python@3.14`
-path. A `brew upgrade` therefore changes what the venv runs and can leave stale
-versioned paths behind. After any brew Python upgrade, recreate the venv:
-`rm -rf .venv && uv sync` (PyCharm keeps working; the `.venv/bin/python` path it points
-at is unchanged).
-
-**Using pip alongside uv.** The project is a standard PEP 621 `pyproject.toml`, so pip
-works on the same `.venv`:
-
-```sh
-source .venv/bin/activate
-pip install <something>          # fine for experiments in the existing uv-created venv
-```
-
-or fully pip-managed from scratch:
-
-```sh
-python3.14 -m venv .venv && source .venv/bin/activate
-pip install -e . --group dev     # --group needs pip >= 25.1; else: pip install -e . pytest ruff
-```
-
-Use `-e` (editable): a plain `pip install .` freezes a copy of the code into
-site-packages, which then shadows edits to `src/` until reinstalled.
-
-**Run `uv sync` only for setup and after dependency changes, not casually.** It makes
-the venv match `uv.lock` *exactly*, so it removes packages that were pip-installed by
-hand. When a step adds project dependencies, `uv sync` will run again; re-install
-personal pip extras afterwards, or make them permanent with `uv add <pkg>` (updates
-`pyproject.toml` + `uv.lock` + the venv in one go). To pick up new project deps
-**without** pruning your pip extras, use `uv sync --inexact`: it installs what the
-lock requires and leaves the rest alone.
-
-Lockfile maintenance: `uv lock` re-resolves `uv.lock` from `pyproject.toml` (uv never
-locks from the venv state); `uv lock --upgrade` refreshes all pins within the
-constraints; `uv lock --upgrade-package <name>` refreshes one.
-
-**Local scratch space.** `sandbox/` is the gitignored experimentation area (only its
-README is kept); `make run-chrome` writes its log and pid there.
-
-## Deployment modes
-
-- **dev_mode**: postgres in a container, the hub from the working tree
-  (`make run` / `make run-chrome`), Ctrl+C ends it.
-- **installed** (`make install`, D38): the same hub from the checkout's `.venv`, run by a
-  macOS LaunchAgent at login and restarted when it exits, postgres in the container,
-  the menu bar app beside it. One machine, one hub: `make run` on the same port refuses
-  to bind while the installed hub is up.
-- A hub container (hub + postgres both in compose) is not built; a remote hub is a
-  postponed feature (`planning/next-features-list.md`).
-
-The hub binds `127.0.0.1` only; v1 is an on-my-laptop-only deployment by design.
+`diagrams/` holds the pictures the documents use, with their sources. A worked example of a
+team charter is in [`examples/team-charters/`](../examples/team-charters/).

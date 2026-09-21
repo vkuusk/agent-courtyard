@@ -39,6 +39,8 @@ for key, domain in (("infra", "the AWS estate"), ("tf", "terraform modules"), ("
     _, tokens[key] = admin.register_agent(names[key], "dummy", f"runbook {key}", domain)
 as_ = {key: HubClient(HUB, name=names[key], token=tokens[key]) for key in names}
 line = admin.link(names["infra"], names["tf"])
+# a new line starts on auto-pass; this check needs the gate, so its own line is pinned
+admin.set_mode(line.id, "supervised")
 print(f"registered {', '.join(names.values())}; line infra-tf is {line.mode}")
 
 hr("1. A NOTE ON A SUPERVISED LINE WAITS  (what courtyard_note tells the author)")

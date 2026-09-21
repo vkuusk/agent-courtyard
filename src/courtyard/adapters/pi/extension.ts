@@ -194,7 +194,7 @@ export default function (pi) {
     }
     await startServer();
     status("connecting…");
-    // Attach retries forever, every 2 s (feedback item 12): the operator's habit
+    // Attach retries forever, every 2 s: the operator's habit
     // is agents first, hub second, and a session must never need relaunching
     // just because it won the race.
     let attempt = 0;

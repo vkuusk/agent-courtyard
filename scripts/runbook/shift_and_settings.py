@@ -7,7 +7,7 @@
      heartbeat turns them green again
   3. the throwaway agent is a dummy, so the shift SKIPS it — this script never opens a
      real terminal window. The real-spawn check is the manual procedure in
-     docs/testing-runbook.md (press the pill with a claude-code agent down).
+     docs/testing.md (press the pill with a claude-code agent down).
 
 Run against a hub started with `make run`:
     uv run python scripts/runbook/shift_and_settings.py
@@ -80,7 +80,7 @@ if down or busy:
     if down:
         print(f"SKIPPED: claude-code agent(s) down ({', '.join(down)}) — starting the shift")
         print("would open real terminals for them. Start their sessions (or remove them),")
-        print("or do the manual pill check in docs/testing-runbook.md instead.")
+        print("or do the manual pill check in docs/testing.md instead.")
     if busy:
         print(f"SKIPPED: {len(busy)} line(s) are mid-conversation — ending the shift with")
         print("force would expire their unanswered messages (D24). Finish or release them.")

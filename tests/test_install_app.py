@@ -155,7 +155,7 @@ def test_install_sh_unpacks_a_zip_package_into_an_empty_directory(tmp_path):
     # files at HEAD (the archive is of the commit, so nothing uncommitted can be expected)
     for present in ("Makefile", ".env.default", ".python-version", "tests", "webui"):
         assert (target / present).exists(), present
-    for absent in (".github", ".claude", "docs/planning", "docs/archived", ".gitattributes"):
+    for absent in (".github", ".claude", ".gitattributes"):
         assert not (target / absent).exists(), absent
     assert not (target / "courtyard-test").exists()  # flattened
 

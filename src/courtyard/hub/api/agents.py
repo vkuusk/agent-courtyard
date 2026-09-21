@@ -31,7 +31,7 @@ class AgentCreate(BaseModel):
     workdir: str | None = None
     launch: dict[str, Any] | None = None
     color: AgentColor | None = None  # omitted = the hub picks the least-used colour
-    # the model its runtime should use (feedback item 1); install writes it into the
+    # the model its runtime should use; install writes it into the
     # agent's settings and the launch command shows it
     model: str | None = Field(default=None, max_length=120)
 

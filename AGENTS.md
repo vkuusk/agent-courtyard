@@ -1,7 +1,7 @@
 # Instructions for AI agents
 
 This file is for an AI agent working in this repository: setting courtyard up
-for its operator, or contributing to the code. The [README](README.md) explains
+for its operator, or contributing to the code. The [README](obsolete-README.md) explains
 what the project is and why; this file is the executable part.
 
 ## What you are setting up
@@ -142,8 +142,8 @@ the full walkthrough with every screen described, and at
   [.claude/skills/courtyard-testing/SKILL.md](.claude/skills/courtyard-testing/SKILL.md)
   before testing or adding tests. Claude Code loads it by itself.
 - Every completed feature ships a manual verification procedure in
-  `docs/testing-runbook.md` plus a durable script in `scripts/runbook/`;
-  conventions live in `docs/developer-notes.md`.
+  `docs/testing.md` plus a durable script in `scripts/runbook/`;
+  conventions live in `docs/development.md`.
 - The design document (`docs/design/architecture-v1.md`) records
   every decision with its reasons in a decision log; read the relevant entries
   before proposing a design change.

@@ -1,5 +1,4 @@
-"""Runbook check: message transfer control after communication-protocols.md section 7
-(feedback item 45, build step 3).
+"""Runbook check: message transfer control after communication-protocols.md section 7.
 
   1. Default: a new agent line starts on auto-pass; the first message goes through.
   2. A report to the operator awaits nothing: the line stays idle, its thread ends at

@@ -11,11 +11,12 @@ Throwaway: two dummy registrations, removed at the end; the archives it made are
 """
 
 import json
+import os
 import time
 
 from courtyard.common.client import HubClient
 
-HUB = "http://127.0.0.1:2626"
+HUB = os.environ.get("COURTYARD_HUB_URL", "http://127.0.0.1:2626")
 
 
 def hr(title):
@@ -29,6 +30,8 @@ _, a_token = admin.register_agent(a_name, "dummy", "runbook agent A")
 _, b_token = admin.register_agent(b_name, "dummy", "runbook agent B")
 a, b = HubClient(HUB, name=a_name, token=a_token), HubClient(HUB, name=b_name, token=b_token)
 
+# a new line starts on auto-pass; this check needs the gate, so its own line is pinned
+admin.set_mode(admin.link(a_name, b_name).id, "supervised")
 first = a.send(b_name, "shall we deploy v2 tonight?")
 admin.decide(first.id, "approve", "fine by me")
 reply = b.send(a_name, "yes — after the backup finishes")

@@ -13,11 +13,12 @@ Run against a hub started with `make run`:
 Throwaway: it registers two agents with unique names and removes them at the end.
 """
 
+import os
 import time
 
 from courtyard.common.client import ChannelReceiver, HubClient
 
-HUB = "http://127.0.0.1:2626"
+HUB = os.environ.get("COURTYARD_HUB_URL", "http://127.0.0.1:2626")
 
 
 def hr(title):
@@ -60,6 +61,8 @@ def approve(message):
 
 
 # --- 1 + 2: a domain owner's message, as the agent sees it vs. as you see it -----------
+# a new line starts on auto-pass; this check needs the gate, so its own line is pinned
+admin.set_mode(admin.link(infra_name, coding_name).id, "supervised")
 sent = infra.send(coding_name, "Please rotate the IAM keys for the payments role by Friday.")
 approve(sent)
 (delivered,) = wait_for(1)

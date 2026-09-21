@@ -38,7 +38,9 @@ tokens = {}
 for key, domain in (("infra", "the AWS estate"), ("tf", "terraform modules"), ("argo", "argocd")):
     _, tokens[key] = admin.register_agent(names[key], "dummy", f"runbook {key}", domain)
 as_ = {key: HubClient(HUB, name=names[key], token=tokens[key]) for key in names}
-admin.link(names["infra"], names["tf"])  # explicit so the check runs under manual discovery too
+# linked so the check runs under manual discovery too; pinned supervised because a new line
+# starts on auto-pass and this check needs the gate
+admin.set_mode(admin.link(names["infra"], names["tf"]).id, "supervised")
 print(f"registered {', '.join(names.values())} (dummies, linked infra-tf)")
 
 

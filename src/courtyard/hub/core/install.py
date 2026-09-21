@@ -228,7 +228,7 @@ def start_script(agent_name: str, command: str) -> str:
 
 
 def status_line(agent_name: str) -> dict:
-    """A status line that answers "which agent is this terminal?" (feedback item 2)."""
+    """A status line naming the agent whose terminal this is."""
     return {"type": "command", "command": f"echo '⏺ {agent_name} · courtyard'", "padding": 0}
 
 
@@ -240,8 +240,8 @@ def merge_settings(
     The allow rule is appended if missing; the model is the operator's declared intent and
     wins when set (untouched when the agent has none); the status line is set when the
     file has none — or when the existing one is recognisably OURS (`STATUS_MARK`), so a
-    workdir re-registered under a new name stops announcing the old one (feedback item
-    19). A status line somebody wrote themselves is never clobbered. The SessionStart
+    workdir re-registered under a new name stops announcing the old one.
+    A status line somebody wrote themselves is never clobbered. The SessionStart
     hook (D40) is ours by its command name: replaced in place, other hooks untouched.
     """
     doc = dict(existing) if existing else {}
@@ -339,9 +339,9 @@ def install(
     settings_doc = merge_settings(s_existing, agent_name, model, hub_url)
     settings_target.write_text(json.dumps(settings_doc, indent=2) + "\n")
 
-    # Item 35: the launch wrapper. Ours is regenerated in place; a file of this name
+    # The launch wrapper. Ours is regenerated in place; a file of this name
     # that is NOT ours is backed up first — and never rotated away by re-installs,
-    # unlike the json backups (their flaw is recorded in feedback item 28).
+    # unlike the json backups.
     script_target = directory / SCRIPT_FILENAME
     script_backed_up: str | None = None
     if script_target.exists() and SCRIPT_MARK not in script_target.read_text():

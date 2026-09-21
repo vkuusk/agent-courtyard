@@ -13,11 +13,12 @@ Throwaway: two agents with time-suffixed names, both removed at the end (the arc
 they leave behind is deleted too).
 """
 
+import os
 import time
 
 from courtyard.common.client import HubClient, HubError
 
-HUB = "http://127.0.0.1:2626"
+HUB = os.environ.get("COURTYARD_HUB_URL", "http://127.0.0.1:2626")
 DEAD_ENDPOINT = "http://127.0.0.1:9/"  # attach wants a local URL; nothing is pushed here
 
 

@@ -306,7 +306,7 @@ def test_peers_puts_reachable_agents_first_and_trims_dev_clutter(live_hub):
 
 
 def test_adapter_attaches_when_the_hub_arrives_late(live_hub, config):
-    """Agents-first, hub-second must work (feedback item 12): the adapter keeps retrying
+    """Agents-first, hub-second must work: the adapter keeps retrying
     attach instead of giving up after ~10s and leaving the agent permanently offline."""
     from dataclasses import replace as dc_replace
 

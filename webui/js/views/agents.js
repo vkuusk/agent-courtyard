@@ -18,7 +18,7 @@ const charterOf = (agentName) => {
 };
 
 // The launch command; the agent's declared model rides along so nobody forgets to set it.
-// The channels preview drifted twice in four days (feedback item 11): 2.1.241 stopped
+// The channels preview drifted twice in four days: 2.1.241 stopped
 // honouring this flag, 2.1.245 restored it — and made the two-flag workaround fail. This
 // single-flag form is verified end-to-end by tests/communications/oper-agent1-oper.py.
 // --settings approves the courtyard MCP server for the launch: Claude Code ignores the
