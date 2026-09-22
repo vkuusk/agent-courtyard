@@ -195,8 +195,8 @@ class MalformedMcpJson(DomainError):
     http_status = 409
 
 
-class NothingToUninstall(DomainError):
-    code = "nothing_to_uninstall"
+class NothingToDisconnect(DomainError):
+    code = "nothing_to_disconnect"
     http_status = 404
 
 

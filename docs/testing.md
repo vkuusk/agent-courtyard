@@ -86,7 +86,8 @@ Manual:
 
 At session start an adapter asks the hub for its tool definitions, instructions and own
 texts (`GET /api/agents/{name}/texts`) and falls back to its packaged copy. The pi skill
-is a file on disk and changes with **sync dir**. Design: communication-protocols section 8.
+is a file on disk and changes when the agent is saved (edit, save) or at the hub's
+start after an upgrade. Design: communication-protocols section 8.
 
 ```sh
 uv run python scripts/runbook/adapter_texts.py
@@ -243,8 +244,8 @@ Expected, three blocks:
 2. Settings: `allow : ['mcp__courtyard']`, `model : sonnet`, the status line, the
    `SessionStart` hook, and the context the hook prints. Against a dead hub URL it still
    answers: `fallback (hub down) : True`.
-3. Uninstall: `restored from backup: True`, `servers now : ['my-linter']`, the settings
-   hold only `{'model': 'sonnet'}`, `gitignore cleaned: True`.
+3. Disconnect: `restored from backup: True`, `still registered    : True`, `servers now :
+   ['my-linter']`, the settings hold only `{'model': 'sonnet'}`, `gitignore cleaned: True`.
 
 Manual:
 
@@ -252,9 +253,21 @@ Manual:
    during a shift. Its first lines show the membership context, it answers the delivery
    check without asking you, and it answers a peer through `courtyard_send`.
 2. `courtyard-invite --register --name coding --type claude-code --workdir <dir>`
-   registers and installs. `courtyard-invite --name coding --remove` takes the files out
-   and ends with `removed coding from the hub`; with `--keep-registration` it ends with
+   registers and connects. `courtyard-invite --name coding --unregister` takes the files
+   out and ends with `removed coding from the hub`; `--disconnect` ends with
    `coding stays registered on the hub`. Scripted: `uv run pytest tests/test_invite.py`.
+3. Agents page, **remove ▾**, **disconnect**: a message at the bottom of the window says
+   `<name> disconnected: the courtyard files left <dir>` and fades; the table does not
+   move. The directory holds no `.mcp.json` entry and no `start-with-courtyard.sh`, the
+   agent is still in the list and in the charter. A second disconnect says
+   `<name>: nothing to take out of <dir>`. **edit**, **save** writes them again:
+   `saved; files written into ‹dir›`. No console errors.
+4. **remove ▾**, **unregister**: the dialog names the token, the Archive, the charter and
+   the files; after it the directory is clean and the agent is gone from the list and
+   from the charter.
+5. Restart the hub after changing `.env`'s `COURTYARD_PORT` (or after an upgrade): the log
+   has one `connect on start: <name>: courtyard files written into <dir>` line per agent,
+   and `.mcp.json` carries the new URL. A restart without a change logs nothing.
 
 ### Stored tokens
 
@@ -269,14 +282,16 @@ Expected, four blocks: `same as at registration? True`; `equals the stored one? 
 after rotation `status after : gone`, the old token refused with `invalid_token`, the new
 one reads the inbox; the re-install carries the new token.
 
-Manual: in an agent's edit view, **launch config** shows the token and the install
-button, the same content every time. **rotate token** asks first, then shows the new
-token; the agent's dot stays grey until it is restarted with the new files.
+Manual: **launch config** on the row shows the token and the three files, read-only, the
+same content every time. In **edit**, **rotate token** asks first, then says `Token
+rotated; the old one no longer works. Files written into ‹dir›; restart the agent`; the
+launch config shows the new token, and the agent's dot stays grey until it is restarted.
 
 ### The Agents page and the Defaults setting
 
-The add form, the edit view over `PATCH /api/agents/{id}`, removal that also cleans the
-agent's directory, and `New lines start` under Admin, Defaults.
+The add form, the edit view over `PATCH /api/agents/{id}` whose save also connects the
+directory, unregister (disconnect first, then delete), and `New lines start` under
+Admin, Defaults.
 
 ```sh
 uv run python scripts/runbook/agents_edit.py
@@ -288,11 +303,13 @@ auto-pass default has `status = queued`, and the default is restored.
 
 Manual:
 
-1. Agents page: no message box. The add form is behind **+ Add an agent**. Rows carry
-   **edit**, **remove**, and **sync dir** on claude-code and pi agents.
-2. **edit**: change the description and colour, save. The row and the card update live.
-   Name and type are shown as permanent.
-3. **remove**: with a directory set, "also clean up its project directory" is checked.
+1. Agents page: no message box. The add form is behind **+ Add an agent**. Every row
+   carries **edit**, **launch config** and **remove ▾**, nothing else.
+2. **edit**: change the description and colour, save. The row and the card update live,
+   and the line under the buttons says `saved; files written into ‹dir›` (a dummy: `saved`).
+   Name and type are shown as permanent. Change the project directory and save: the old
+   directory is clean, the new one holds the files, the line names both.
+3. **remove ▾**, **unregister**: the dialog says the files leave the directory first.
    Confirm: the agent leaves the list, its lines go to the Archive, the courtyard entries
    leave its files and other content stays.
 4. Admin: Status first, Settings below, every setting a pulldown, `Always on` disabled.
@@ -302,8 +319,8 @@ Manual:
    `kitty --directory {dir} sh -c {command}`. It appears in the pulldown. A custom
    application only opens windows; End shift cannot close them. **remove app** falls back
    to Terminal.
-7. **sync dir**: "synced" shows under the buttons, and the agent's files carry a fresh
-   modification time. Without a directory the button is disabled.
+7. **+ Add an agent** with a project directory: the launch config opens with
+   `Registered; files written into ‹dir›` and the directory holds the files at once.
 
 ### A removed name is registered again
 
@@ -909,6 +926,11 @@ Manual. This changes your login items.
    is open), **Open WebUI**, **Show hub log** do what they say. **Quit Courtyard Admin**
    removes the icon and leaves the hub; opening `Courtyard Admin` from Spotlight brings it
    back; `pkill -f courtyard-tray` brings it back by itself.
-9. **make uninstall.** Both plists, the menu bar icon and the launcher are gone, the
-   containers are down, `.venv` is gone. `.env` and the data volume stay, and `make run`
-   still works from the directory.
+9. **make uninstall.** Step 1 prints one line per registered agent, `<name>: files taken
+   out of <dir>`; the directory holds no courtyard entry in `.mcp.json` and no
+   `start-with-courtyard.sh`, and the charter directory is untouched. Both plists, the
+   menu bar icon and the launcher are gone, the containers are down, `.venv` is gone.
+   `.env` and the data volume stay; `make run` still works from the directory and the
+   agents are still on the Agents page, where **edit**, **save** connects a directory again.
+   With the hub stopped first, step 1 says the hub is not answering and names the
+   `courtyard-invite ... --disconnect` command instead.

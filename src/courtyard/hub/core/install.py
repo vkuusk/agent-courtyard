@@ -38,7 +38,7 @@ from pathlib import Path
 from courtyard import texts
 from courtyard.common import adapter_texts, session_context
 from courtyard.common.models import Agent
-from courtyard.hub.core.errors import MalformedMcpJson, NothingToUninstall, WorkdirNotFound
+from courtyard.hub.core.errors import MalformedMcpJson, NothingToDisconnect, WorkdirNotFound
 from courtyard.hub.core.shift import launch_command_text
 
 MCP_FILENAME = ".mcp.json"
@@ -502,7 +502,7 @@ def uninstall_pi(workdir: str) -> UninstallResult:
     anything = restored or removed or script_restored or script_removed
     anything = anything or skill_restored or skill_removed or gitignore_cleaned
     if not anything:
-        raise NothingToUninstall(
+        raise NothingToDisconnect(
             f"no courtyard extension and no backup at {target} — nothing to undo."
         )
     return UninstallResult(
@@ -640,7 +640,9 @@ def uninstall(workdir: str) -> UninstallResult:
                 script_removed=script_removed,
                 gitignore_cleaned=gitignore_cleaned,
             )
-        raise NothingToUninstall(f"no courtyard entry and no backup at {target} — nothing to undo.")
+        raise NothingToDisconnect(
+            f"no courtyard entry and no backup at {target} — nothing to undo."
+        )
     del servers[SERVER_KEY]
     if servers:
         existing["mcpServers"] = servers

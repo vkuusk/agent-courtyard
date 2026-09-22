@@ -87,12 +87,12 @@ Then, for each agent:
 
    `<add-screenshot-with-add-agent-form>`
 
-2. In the agent's edit view open **launch config** and press
-   **write the files into ‹dir›**. For a Claude Code agent the hub writes three files
-   into that directory: `.mcp.json` (the connection; it holds the agent's token, keep it
-   out of git), a `.claude/settings.local.json` profile that pre-approves the courtyard
-   tools, and `start-with-courtyard.sh` for starting the agent by hand. A pi agent gets
-   its extension and a skill under `.pi/` instead, and the same start script.
+2. **add agent** registers it and writes its files into that directory. For a Claude
+   Code agent these are three: `.mcp.json` (the connection; it holds the agent's token,
+   keep it out of git), a `.claude/settings.local.json` profile that pre-approves the
+   courtyard tools, and `start-with-courtyard.sh` for starting the agent by hand. A pi
+   agent gets its extension and a skill under `.pi/` instead, and the same start script.
+   **launch config** on the agent's row shows them.
 
    `<add-screenshot-with-launch-config>`
 

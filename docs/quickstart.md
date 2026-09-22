@@ -1,123 +1,97 @@
 # Quickstart
 
-This is the full walkthrough for a new operator: install the hub, start it, connect
-two real Claude Code agents, and supervise their first exchange, with every screen
-described. What you end up with is the day-to-day setup: the hub and its WebUI on
-your machine, and a couple of Claude Code agents in their own terminals that talk to
-each other through the hub, with you deciding how much of that traffic you want to
-approve.
+Install the hub, register two Claude Code agents, run them as a team and supervise
+their first exchange. Every step is done on the WebUI; the command-line equivalent is
+given where one exists.
 
 ## 1. Install and start the hub
 
-Requirements: [uv](https://docs.astral.sh/uv/), Docker with compose, and
+Requirements: macOS, [uv](https://docs.astral.sh/uv/), Docker with compose, and
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude` on your PATH).
 
-If you only want to use the hub, not work on it, there is a shorter path: from an empty
-directory, `curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh`
-installs it as a macOS app that starts at login, with a menu bar icon for the buttons,
-Courtyard Admin (the user guide's "Installing as an app"). It ends with a summary of its
-steps; read any warning there, it tells you when an earlier install's database was found
-and reused.
-The rest of this walkthrough uses the development setup below; the WebUI and every step
-after it are the same either way.
+There are two ways to install. As an app, from an empty directory:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
+```
+
+The hub then starts at login, and **Courtyard Admin** in the menu bar starts, stops and
+restarts it (user guide, Installation). Read the summary the installer prints;
+a warning there means an earlier install's database was found and is reused.
+
+From a clone, in the foreground:
 
 ```sh
 git clone https://github.com/vkuusk/agent-courtyard.git
 cd agent-courtyard
-cp .env.default .env   # local settings; see the port-collision note below
-uv sync            # creates .venv with everything, including the agent adapter
-make run           # postgres up + the hub on http://127.0.0.1:2626 (leave this terminal up)
+cp .env.default .env   # local settings; the compose postgres listens on 26432 (COURTYARD_PG_PORT)
+uv sync
+make run               # postgres + the hub on http://127.0.0.1:2626; leave this terminal open
 ```
 
-The compose postgres listens on host port 26432, deliberately not 5432, so it never
-collides with a postgres of your own; `COURTYARD_PG_PORT` in `.env` moves it, and the
-hub, the tests and the runbook scripts all follow. A clone that ran before the compose
-project was named `courtyard` must first remove the old `courtyard-postgres` container
-(the user guide, installing as an app, has the steps and how to keep the data). Colima
-works as the container runtime too; be aware that older Colima versions ignore the
-localhost-only
-port binding and may expose the postgres port on your local network, which is
-a Colima limitation, not a courtyard setting.
+`make run-chrome` instead starts the hub in the background (log: `sandbox/courtyard.log`)
+and opens the WebUI in its own Chrome window; `make run-stop` ends that hub.
 
-Open **http://127.0.0.1:2626/**. The Courtyard page is empty and the dot at the top
-right says **live**. The hub listens on 127.0.0.1 only, so nothing outside your
-machine can reach it.
-
-Alternatively, `make run-chrome` does all of the above in one go: postgres, the hub
-in the background (log: `sandbox/courtyard.log`), and the WebUI in its own Chrome
-window. `make run-stop` ends the background hub.
+Open http://127.0.0.1:2626. The Courtyard page is empty and the dot at the top right
+says **live**. The hub listens on 127.0.0.1 only. From here on the walkthrough is the
+same for both installs.
 
 ## 2. Make a project directory for each agent
 
-Each agent works in its own directory, exactly as you would run two separate Claude Code
-sessions. For the example, two small directories with something in them:
+Each agent works in its own directory, as two separate Claude Code sessions would. For
+the example:
 
 ```sh
 mkdir -p ~/courtyard-quickstart/main-admin ~/courtyard-quickstart/infra-claude
 printf 'resource "null_resource" "placeholder" {}\n' > ~/courtyard-quickstart/infra-claude/main.tf
-printf '# infra notes\n' > ~/courtyard-quickstart/infra-claude/README.md
 ```
 
-Real project directories work just as well; the only files courtyard puts there are
-the config files written in the next step.
+Real project directories work the same; courtyard only adds the config files written in
+the next step.
 
 ## 3. Choose the team's directory, then register the agents
 
-A courtyard team is defined as files in one directory, the team charter, and the
-hub requires it before the first agent. The empty Courtyard page asks for it:
-press **browse**, pick a directory outside the agents' project directories (for
-the example, `~/courtyard-quickstart/team`), and name the team when asked - the
-hub writes `team-definition.yml` there and the team is current from then on.
-Every agent you register next is also written into that directory as its card
-files, so the team design lives on disk, reviewable and portable (its own git
-repo is the natural home).
+A team is defined as files in one directory, the team charter, and the hub requires it
+before the first agent. The empty Courtyard page asks for it: press **browse**, pick a
+directory outside the agents' project directories (for the example,
+`~/courtyard-quickstart/team`) and name the team when asked. The hub writes
+`team-definition.yml` there, and every agent registered from now on is written there
+too, as its card files.
 
-A directory that already holds a charter is loaded instead, with nothing to name:
-its agents are registered at once, and each agent whose project directory is listed
-in the charter's `workdirs.local.yml` gets its courtyard files written there in the
-same step (the files described below, with the agent's new token). An agent without
-an entry gets its files when you choose its directory under **Admin, Teams**. Such a
-team is ready: go on to section 4.
+A directory that already holds a charter is loaded instead: its agents are registered
+at once, and each agent whose project directory is listed in the charter's
+`workdirs.local.yml` gets its files (described below) written in the same step. An
+agent without an entry gets them when you choose its directory under **Admin → Teams**.
+Such a team is ready; go on to section 4.
 
-On the **Agents** page (side bar), add each agent: name, type **claude-code**, a
-description of what it can do, what it owns, its project directory, optionally the
-model it should run (e.g. `sonnet`, so nobody forgets to set it at launch), and a
-colour for its card (one is pre-selected; keep it or pick another).
+For a new team, register each agent on the **Agents** page, **+ Add an agent**:
 
-Take a moment over the descriptive fields; this is team design, not bookkeeping.
-What the agent can do is advertised to every other agent and is how they decide whom
-to ask; what it owns marks the agent's word as authoritative inside its own area.
-A third, optional field states what the agent is NOT for; peers see it as a short
-"not for" note and use it to avoid asking the wrong agent.
-
-The agent's tool permissions are part of the same design. They are Claude Code's own
-settings, per project, not the hub's: give each agent standing approval for the
-read-only access its responsibilities need, so a peer's question does not stop at a
-permission prompt in a terminal nobody is watching. The hub tells agents to report,
-rather than stall, when an answer needs something they may not do.
+- the name (permanent; a removed agent's name can be registered again)
+- the type, `claude-code`
+- what it can do, what it owns, and optionally what it is not for; every other agent
+  sees all three (choosing them is team design, the README's step 1)
+- the project directory
+- optionally the model it should run (`sonnet`), and the colour of its card
 
 | name | owns | project dir |
 |---|---|---|
 | `main-admin` | the admin workbench | `~/courtyard-quickstart/main-admin` |
 | `infra-claude` | infrastructure and terraform | `~/courtyard-quickstart/infra-claude` |
 
-After **add agent** the page shows the agent's **launch config**: its `.mcp.json` with
-the token inside, and a `.claude/settings.local.json` profile that pre-approves the
-courtyard tools (so the agent's sends never stop on a permission prompt in its
-terminal), tells each new session that it is a member of your team (a session-start
-hook; see the user guide), sets the model you declared, and gives the terminal a status line with the
-agent's name. Click the button **write the files into ‹dir›**. The hub writes
-`<dir>/.mcp.json` with permissions 600 (do not commit that file) and the settings
-profile beside it. The hub keeps the token.
+**add agent** registers the agent and writes three files into its project directory:
+`.mcp.json` (the connection; it holds the agent's token, permissions 600, keep it out of
+git), a `.claude/settings.local.json` profile (pre-approves the courtyard tools, tells
+each session that it is a member of the team, sets the model) and
+`start-with-courtyard.sh` for starting the agent by hand. The hub keeps the token.
 
-Nothing is set in stone but the name and type: **edit** on an agent's row opens
-everything about it (the descriptions, directory, model and colour, editable any
-time), plus **launch config** (this panel again) and **rotate token** (after which
-the agent needs the new file and a restart). **remove** asks whether to also clean
-the courtyard pieces back out of the agent's project directory.
+Each row then has three actions. **edit** changes everything but the name and type;
+**save** writes the files again, and **rotate token** there replaces the token and
+rewrites them (the agent then needs a restart). **launch config** shows the files.
+**remove ▾** offers **disconnect** (the files leave the directory, the agent stays on the
+team) and **unregister** (the files leave, the agent leaves the hub and the charter).
 
-The same from a terminal, if you prefer (the `--team` flags on the first command
-choose the charter directory when the hub has no team yet):
+The same from a terminal (the `--team` flags choose the charter directory while the hub
+has no team yet):
 
 ```sh
 uv run courtyard-invite --team-dir ~/courtyard-quickstart/team --team-name quickstart \
@@ -127,199 +101,151 @@ uv run courtyard-invite --register --name infra-claude \
     --sme-domain "infrastructure and terraform" --workdir ~/courtyard-quickstart/infra-claude
 ```
 
-Names cannot be changed once registered. A removed agent's name is free to use again,
-though: registering it brings the agent back on its own record with a new token, so
-re-running this on a hub that already has history works with the same names.
-
 ## 4. Start the team: press Start shift
 
-On the **Courtyard** page, press **▶ Start shift** (top right of the Team panel). The
-courtyard opens one terminal window per agent, each already in the agent's directory
-and already running the launch command, and the pill counts the team up
-(`Starting · 1/2` → `● 2/2 on shift`). It first counts down a few seconds ("Waiting
-for the team") before opening anything: every agent's status turns gray while it is
-checked, an agent that reports in turns green and keeps its terminal, and only the
-rest get new windows. The countdown is there because a stored green status can be
-left over from a session that has already ended; the courtyard trusts a fresh
-heartbeat, not the stored status. Which terminal app it uses (Terminal, iTerm2 or
-Ghostty; the shift opens and closes their windows) is set under **Admin → Terminal
-application**, where you can also add another terminal by its start string.
+On the **Courtyard** page press **▶ Start shift**. The hub first checks who is already
+running (**Waiting for the team**, a few seconds: a stored status is not trusted, a fresh
+heartbeat is), then opens one terminal window for each agent that is not, in the
+agent's directory, running the launch command. The pill counts the team up:
+`Starting · 1/2`, then `● 2/2 on shift`. The terminal application (Terminal, iTerm2 or
+Ghostty) is chosen under **Admin → Terminal application**.
 
-The first time an agent starts, Claude Code asks in its terminal whether to allow the
-channel; accept it, it cannot be pre-answered. The other first-run question, whether to
-use the project's `.mcp.json` server, is answered by the launch command, and the settings
-profile already pre-approved the courtyard tools, so that is its only question. Within a few seconds the agent's rectangle on the
-**Courtyard** page gets a green dot (**connected**).
+At an agent's first launch Claude Code asks in its terminal whether to allow the
+channel: answer yes, it cannot be pre-answered. Whether to use the project's
+`.mcp.json` server is answered by the launch command itself. Within a few seconds the
+agent's rectangle shows a green dot, **connected**.
 
-Each session that starts during a shift also gets a **delivery check**: the hub sends
-it a message that only asks the agent to confirm receipt with a tool call. The card
-shows "checking delivery…" and then a small green check mark, which means messages
-provably reach that session. You can re-run the check any time from the small button
-on a connected agent's card. If a card instead warns "started without the channel"
-(with a popup explaining it), that session was started without the channel flag: it
-looks healthy but cannot hear the hub. Close it and run `./start-with-courtyard.sh`
-in the agent's directory, or press End shift and Start shift.
+Each session then gets a **delivery check**: the hub sends it a message that only asks
+for a confirming tool call. The card shows "checking delivery…", then a green check
+mark, which means the session received the message. The same button runs the check
+again. A card that warns **started without the channel** belongs to a session started
+as a plain `claude`: it can send to the hub but cannot hear it. Close that session and
+run `./start-with-courtyard.sh` in the agent's directory, or End shift and Start shift.
 
-When the day is done, press **■ End shift** (the square button beside the status
-pill). It closes exactly the terminals it opened (terminals you opened yourself are
-left alone) and closes the books: any conversation still waiting on a reply, or a
-message still held at the gate, is marked **expired**. Expired messages stay in the
-history, but the next shift starts with every line clear. If something still matters
-tomorrow, just send it again.
+**■ End shift** closes the terminals the shift opened (terminals you opened yourself
+are left alone) and expires whatever is still unanswered or held at the gate. Expired
+messages stay in the history; the next shift starts with every line clear.
 
-You can always start an agent by hand instead: one terminal, the agent's directory,
-and the wrapper script that registration wrote there. It runs Claude Code with the
-flag that enables the channel (a research preview flag, long and easy to forget,
-which is exactly why the script exists):
+To start one agent by hand:
 
 ```sh
 cd ~/courtyard-quickstart/main-admin
-./start-with-courtyard.sh
+./start-with-courtyard.sh    # claude with the channel flag, and --model if you declared one
 ```
 
-Starting a plain `claude` in an agent's directory works as a normal session but
-cannot hear the hub; the board will warn you about it (a popup and a red note on the
-agent's card).
+## 5. The first exchange
 
-If messages stop arriving after a Claude Code auto-update ("Restart to update" in the
-terminal), restart the agents. If they still do not arrive, run
-`uv run python tests/communications/oper-agent1-oper.py`: it proves the live round
-trip and, on failure, tells you whether the channel was registered or skipped. The
-preview's flag contract has drifted before.
+Press **Brake** beside the shift pill first. A new line between two agents starts on
+**auto-pass**; the brake puts every agent line behind the gate, so this first exchange
+can be watched message by message.
 
-(If you declared a model, the launch config's command adds `--model`; copy it from
-there. The shift's spawned terminals include it automatically.)
-
-## 5. The worked example
-
-On the **Courtyard** page, click the `main-admin` rectangle, type in the box at the
-bottom, and press Enter:
+Click the `main-admin` rectangle on the **Courtyard** page, type in the box at the
+bottom and press Enter:
 
 > Ask infra-claude to list the files in its working directory, and tell me what it reports.
 
-What happens, and what you see:
-
-Before you press Enter, press **Brake** beside the shift pill: a new line between two
-agents starts on **auto-pass**, and the brake puts every agent line behind the gate so
-you can watch this first exchange word by word.
-
-1. Your message arrives in main-admin's terminal as a conversation turn, marked as coming
-   from the operator. Your own lines are never gated.
-2. main-admin looks up who is on the team (its `courtyard_peers` tool) and sends
-   infra-claude a message. The brake is on, so the message stops at the gate: a new line
-   `main-admin ↔ infra-claude` appears under **Lines** with an amber wire, *held at the
-   gate* (the browser tab shows a count). Click it: the held message shows a plain
-   comment field right under it, then **approve** / **return to sender** / **drop**.
-   Whatever you type there goes with your decision: to infra-claude as an appended note
-   on approve, back to main-admin as the reason on return. On drop it goes nowhere (the
-   message is simply dropped). Approve it.
-3. infra-claude receives the message, lists its files, and replies. The reply passes the
-   same gate, so approve it too.
-4. main-admin reads the answer and replies to you. Its rectangle shows **1 new**; click it
-   to read the answer in the pane. Press **Brake** again and the lines return to
-   auto-pass: from now on the agents talk while you read along.
+1. The message arrives in main-admin's terminal as a turn from the operator. Your own
+   lines are never gated.
+2. main-admin looks up the team (its `courtyard_peers` tool) and sends to infra-claude.
+   The message stops at the gate: a line `main-admin ↔ infra-claude` appears under
+   **Lines**, *held at the gate*. Click it. Under the held message is a comment field
+   and **approve** / **return to sender** / **drop**. The comment goes with the verdict:
+   appended to the message on approve, back to the sender as the reason on return,
+   nowhere on drop. Approve.
+3. infra-claude lists its files and replies. The reply waits at the same gate; approve
+   it too.
+4. main-admin answers you. Its rectangle shows **1 new**; click it to read the answer.
+   Press **Brake** again and the lines return to auto-pass.
 
 The same request typed into main-admin's own terminal gives the same exchange on the
-board, except for the last step: the answer comes back to you in that terminal, where
-you asked. The hub tells an agent, with every answer it delivers, whether anyone on the
-board is waiting for it or whether the request came from its terminal.
+WebUI, and the answer comes back in that terminal. On each line one message can be
+unanswered at a time: a second send before the answer is refused, and the sender is told
+whose turn it is.
 
-Click any rectangle or wire to read that conversation; the pane scrolls.
+## 6. Controls you will use
 
-Turn-taking: on each line only one message can be unanswered at a time. If an agent tries
-to send again before the other side has answered, the hub refuses and tells it whose turn
-it is, so agents wait rather than flood.
+- **supervised** / **auto-pass**, in the header of a selected line. **supervised** means
+  every message on the line waits at the gate for your verdict; **auto-pass** means
+  messages flow and are logged. **Admin → Defaults** sets the mode a new line starts in.
+- **Brake** switches every agent line to supervised at once; pressing it again returns
+  them to the default. A turn already running finishes first.
+- **return to sender** hands a held message back with your comment; **drop** ends it and
+  tells the sender not to resend. Both stay in the history.
+- A line between two agents has no input box. To write to an agent, click its rectangle.
+- **Admin → Settings → Discovery** `manual` means agents see and can message only whom
+  you have linked: **+** in the Lines panel opens a line, **unlink** in its header
+  archives and closes it. `auto` (the default) lets any pair start talking.
+- **release**, in the header of a line stuck waiting for an agent that died mid-reply,
+  ends the open thread and tells both agents.
+- **archive** moves a line's history to the **Archive** page (readable there, exportable
+  as JSON) and empties the line. Removing an agent archives its lines.
+- **Memory** lists the case files of closed threads and the notes agents leave for the
+  team, with the verdicts that wait for you. Agents search it with `courtyard_recall`.
+- Closing an agent's terminal is fine: its messages wait on the line and are delivered
+  when it starts again. Messages that arrive during a turn are delivered when the turn
+  ends.
 
-## 6. From here
+## 7. When things get out of step
 
-The [user guide](user-guide.md) is the reference for everything below and more, part
-by part: teams and agents, lines and the gate, the shift, and the Admin page.
+- **Terminals closed, or a reboot, without End shift.** After a `Checking the team`
+  countdown the WebUI asks **The last shift was never ended**. **End shift** closes it
+  (unfinished messages expire); **Start new shift** closes it and starts fresh.
+  **Not now** leaves an amber *shift left open* tag in the Team header; click it to get
+  the question back.
+- **Part of the team is down mid-shift** (`1/2 on shift`). Press **▶ Resume shift**: it
+  opens terminals for the missing agents only, and what they still owe is delivered
+  again.
+- **The hub was restarted mid-shift.** Nothing to do. The terminals own the sessions;
+  each agent turns green at its next heartbeat (within 5 s).
+- **Claude Code auto-updated under running sessions** ("Restart to update" in the
+  terminals, or messages stop arriving). End shift, Start shift. If messages still do
+  not arrive, `make test-comms` runs the operator → agent → operator round trip against
+  a live session and prints where it broke.
+- **The database was deleted, or the team was rebuilt from its charter.** Registrations
+  and tokens are new. Choosing the charter directory again registers every agent and
+  rewrites the files in each directory `workdirs.local.yml` lists. An agent whose
+  directory is not listed keeps a dead token: its card reads **token rejected, rewrite
+  the agent's files**. Exit that session, choose its directory under **Admin → Teams**
+  (or **edit**, **save**), and start it again.
 
-- **The dial.** With a line selected, **switch to supervised** in the pane header puts
-  its messages behind the gate; **switch to auto-pass** lets them flow without you
-  (still logged). Admin, Defaults sets the mode a new line starts in.
-- **The brake.** **Brake** beside the shift pill switches every agent line to supervised
-  at once, for when a task has gone wrong across several lines; pressing it again
-  returns them to the default. A turn already running in a session finishes first; the
-  brake holds the next message.
-- **Return and drop.** On a held message, **return to sender** hands it back with your
-  comment for another pass; **drop** ends it: the sender is told not to resend, and your
-  comment stays on the WebUI as your own record. Both stay in the history.
-- **Questions go to direct chats.** A line between two agents has no input box; the only
-  thing you write on a line is the verdict's comment. To ask an agent something, click
-  its rectangle and use the box at the bottom.
-- **Wire the team yourself.** Admin → Settings → **Discovery** `manual` means agents see
-  and can message only whom you have linked. The small **+** in the Lines panel's corner
-  opens a line between two agents; **unlink** in its header archives the history and
-  closes it. `auto` (the default) lets any pair start talking on their own. You are
-  always reachable either way.
-- **Release.** If an agent died mid-reply and its line is stuck waiting, **release** in the
-  pane header resets it: the open thread ends and both agents are told.
-- **Archive.** When a conversation is done, **archive** in the pane header moves its history
-  to the **Archive** page (read it again, export it as JSON) and the line starts empty.
-- **Memory.** A closed thread becomes a case file, and agents can leave notes for the
-  team; the **Memory** page lists both, with the verdicts on notes that wait for you.
-  Agents ask for it with `courtyard_recall`. The user guide's Memory section has the rules.
-  Removing an agent archives its lines by itself, so the WebUI only ever shows the team.
-- **Closing a terminal is fine.** Messages for an agent wait on its line and are delivered
-  when you start it again with the same command. Messages that arrive while an agent is
-  busy queue and arrive when its current turn ends.
+## 8. Stop and clean up
 
-## When things get out of step
+### Stop everything
 
-The courtyard keeps its record (in Postgres) even when the pieces around it come and
-go: terminals, Claude Code sessions, the hub process. When the record and reality
-disagree, these are the moves; each one is safe to do at any time.
+1. **■ End shift** on the Courtyard page: the agents' terminals close.
+2. Stop the hub: Ctrl+C in the `make run` terminal; `make run-stop` after
+   `make run-chrome`; `make hub-stop` for the installed app (it stays down, also across
+   logins, until `make hub-start`).
+3. `make db-down` stops postgres. The data survives.
 
-- **You closed the terminals (or rebooted) without ending the shift.** After a short
-  `Checking the team` countdown (making sure nobody is actually up), the courtyard
-  asks "**The last shift was never ended**" and offers two answers. **End shift**
-  closes it and nothing more (unfinished messages expire, kept in history), which is
-  the answer when you only want to do admin work. **Start new shift** closes the old
-  one and starts fresh in one go. "Not now" leaves an amber *shift left open* tag in
-  the Team header; click it to get the question back.
-- **Part of the team died mid-shift** (a closed or crashed terminal, `1/2 on shift`).
-  Press **▶ Resume shift**, which appears next to `■ End shift` whenever someone is
-  down. It opens terminals for exactly the missing agents (the healthy ones are never
-  touched), and anything the returning agents still owed is delivered again.
-- **The hub was restarted mid-shift.** Do nothing. For the first seconds the WebUI
-  says so honestly ("checking…" dots, a `Checking the team · 10` countdown), and each
-  agent turns green the moment its next heartbeat arrives (within 5 s); the
-  terminals own the sessions, not the hub. The WebUI never shows a status it has not
-  verified.
-- **Claude Code auto-updated under running sessions** (an update banner in the
-  terminals, or messages stop getting through). End the shift and start it again;
-  fresh sessions run the new version. If messages still misbehave, run
-  `make test-comms`: it proves the whole operator → agent → operator path against a
-  live session and prints where it broke. Channels are a research preview; the
-  launch-flag contract has drifted before.
-- **You nuked the database** (`make db-nuke`), or rebuilt the team from its charter.
-  Registrations and tokens are new. Choosing the charter directory again registers every
-  agent and writes the new config over the stale one in each directory
-  `workdirs.local.yml` lists; an agent without an entry there still holds its old config
-  with a now-dead token. A session started from a dead token retries attach every two
-  seconds and is refused every time: its card reads **token rejected, rewrite the
-  agent's files** instead of "not started yet", the shift counts it as not on shift, and
-  the adapter's log names the cause and the fix. Exit those sessions. For an agent whose
-  files the load did not write, choose its directory under **Admin, Teams**, or open
-  **edit**, **launch config**, **write the files**: the new config overwrites the stale
-  token in place. Start the sessions again.
+### Start from scratch
 
-## Stop and clean up
+Stop everything as above, then:
 
 ```sh
-make db-down       # stop postgres; the data survives
-make db-nuke       # stop AND delete all courtyard data
+make db-nuke     # stop postgres AND delete the courtyard database
+make run         # or make hub-start for the installed app: an empty hub
 ```
 
-To take courtyard back out of a project directory:
+Registrations, tokens, lines and history are gone. The charter directory and the
+agents' project directories are not touched. Choose the charter directory again on the
+empty Courtyard page: the agents are registered anew and their files rewritten
+(section 7, last case).
+
+### Uninstall everything
 
 ```sh
-uv run courtyard-invite --name main-admin --workdir ~/courtyard-quickstart/main-admin --remove
+make uninstall            # the courtyard files out of every agent's directory, then the LaunchAgents, the Admin app, the containers, .venv
+make uninstall PURGE=1    # also the database volume
 ```
 
-That removes the agent from the hub as well (add `--keep-registration` to leave it
-registered). It restores the `.mcp.json` that was there before (or removes ours if we created it),
-and takes the courtyard pieces back out of `.claude/settings.local.json` (the model
-entry stays, in case you tuned it). Removing an agent on the Agents page revokes its
-token; its history stays on the WebUI.
+The first step goes through the hub, so the hub must be running (under launchd it is).
+When it is not, uninstall says so and names the command that cleans the directories after
+`make hub-start`. The installation directory with its `.env`, the charter directory and,
+without `PURGE=1`, the registrations stay, so a later install plus the charter directory
+connects the team again. A clone run with `make run` has nothing installed beyond the
+containers: `make db-nuke`, then delete the clone.
+
+For one agent instead of all: **remove ▾**, **disconnect** on the Agents page takes
+courtyard out of its directory and keeps the agent on the team; **unregister** cleans the
+directory, then removes the agent from the hub and from the charter.

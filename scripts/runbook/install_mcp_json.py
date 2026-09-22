@@ -7,7 +7,7 @@ Proves the install path without a Claude Code session:
   3. settings.local.json gets the allow rule (no per-send permission prompt), the agent's
      declared model, a status line naming the agent, and the SessionStart hook (D40),
      which is run for real: what it injects, and that it still answers with the hub down
-  4. uninstall restores the project's original .mcp.json exactly and removes only what
+  4. disconnect restores the project's original .mcp.json exactly and removes only what
      install added to the settings
 
 Run against a hub started with `make run` (or pass --hub / COURTYARD_HUB_URL):
@@ -57,7 +57,7 @@ _agent, token = admin.register_agent(
 )
 
 hr("1. INSTALL  (hub merges the courtyard block into the agent's workdir)")
-result = admin.install(name, token, str(workdir))
+result = admin.connect(name, token, str(workdir))
 print(f"wrote      : {result['path']}")
 print(f"backed up  : {result['backed_up']}")
 print(f"warning    : {result['warning']}")
@@ -104,8 +104,14 @@ print(
     "   <- the same text without the team's name; a session start never waits on the hub"
 )
 
-hr("3. UNINSTALL  (restore the original .mcp.json; remove only ours from the settings)")
-undo = admin.uninstall(name, str(workdir))
+hr(
+    "3. DISCONNECT  (restore the original .mcp.json; remove only ours from the settings; keep the agent)"
+)
+undo = admin.disconnect(name, str(workdir))
+still = admin._call("GET", f"/api/agents/{name}")
+print(
+    f"still registered    : {still['removed_at'] is None}   <- disconnect is the files only; remove is a separate step"
+)
 print(f"restored from backup: {undo['restored_from_backup']}")
 print(
     f"gitignore cleaned   : {undo['gitignore_cleaned']}   <- back to: {(workdir / '.gitignore').read_text()!r}"

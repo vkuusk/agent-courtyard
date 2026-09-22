@@ -89,9 +89,9 @@ the session it is a member of the team, and `start-with-courtyard.sh`, the
 script a human runs to start this agent by hand (it carries the channel flag; a
 bare `claude` session cannot hear the hub). When the workdir is a git checkout the
 hub adds the token-carrying names to its `.gitignore` and says so; the start script
-may be committed. Undo with `courtyard-invite --name <agent-name> --remove`: the
-files come out and the agent leaves the hub (add `--keep-registration` to detach the
-directory only).
+may be committed. Undo with `courtyard-invite --name <agent-name> --unregister`: the
+files come out and the agent leaves the hub and the charter (`--disconnect` instead takes
+the files out and keeps the agent registered).
 
 Verify the whole message path without any real agents: `make demo` runs two
 scripted dummy agents through the hub, including a supervised gate;

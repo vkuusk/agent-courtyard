@@ -373,3 +373,63 @@ def test_quoted_dotenv_values_reach_subprocesses_bare(tmp_path, monkeypatch):
     assert os.environ["COURTYARD_COMPOSE_PROJECT"] == "vvk-courtyard"
     assert os.environ["COURTYARD_PORT"] == "2628"
     assert install.project() == "vvk-courtyard"
+
+
+def test_uninstall_takes_the_files_out_of_every_agent_directory(monkeypatch):
+    """`make uninstall` step 1: every registered claude-code or pi agent with a directory is
+    disconnected through the hub (the files leave, the registration stays); a directory
+    with nothing of ours in it is reported, a failure is reported as NOT cleaned, and other
+    agent types are skipped."""
+    import io
+    import json
+    import urllib.error
+
+    agents = [
+        {"name": "scout", "type": "claude-code", "workdir": "/w/scout", "removed_at": None},
+        {"name": "bare", "type": "claude-code", "workdir": "/w/bare", "removed_at": None},
+        {"name": "pi-1", "type": "pi", "workdir": "/w/pi", "removed_at": None},
+        {"name": "gone", "type": "claude-code", "workdir": "/w/gone", "removed_at": "2026-01-01"},
+        {"name": "dummy", "type": "dummy", "workdir": "/w/dummy", "removed_at": None},
+        {"name": "nodir", "type": "claude-code", "workdir": None, "removed_at": None},
+    ]
+    calls = []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        url = req if isinstance(req, str) else req.full_url
+        if url.endswith("/api/agents"):
+            return Resp(json.dumps(agents).encode())
+        calls.append(url)
+        if "/bare/" in url:
+            body = io.BytesIO(json.dumps({"error": {"code": "nothing_to_disconnect"}}).encode())
+            raise urllib.error.HTTPError(url, 404, "nothing", {}, body)
+        if "/pi-1/" in url:
+            raise urllib.error.HTTPError(url, 500, "boom", {}, io.BytesIO(b"not json"))
+        return Resp(b"{}")
+
+    monkeypatch.setattr(install, "hub_url", lambda: "http://127.0.0.1:1")
+    monkeypatch.setattr(install.urllib.request, "urlopen", fake_urlopen)
+    lines = install.disconnect_agents()
+    assert lines == [
+        "bare: nothing to take out of /w/bare",
+        "pi-1: NOT cleaned, /w/pi (500)",
+        "scout: files taken out of /w/scout",
+    ]
+    assert [c.rsplit("/", 2)[1] for c in calls] == ["bare", "pi-1", "scout"]
+
+
+def test_uninstall_says_so_when_the_hub_does_not_answer(monkeypatch):
+    import urllib.error
+
+    def down(*a, **k):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(install, "hub_url", lambda: "http://127.0.0.1:1")
+    monkeypatch.setattr(install.urllib.request, "urlopen", down)
+    assert install.disconnect_agents() is None

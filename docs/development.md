@@ -106,7 +106,7 @@ its own. Design:
 - **When a new wording reaches a running team:** envelopes, notices, refusals and tool
   results at the hub's restart. Tool definitions, instructions and the adapters' own texts
   at each agent's next session start. The pi skill when the agent's files are written
-  again (Agents page, sync dir).
+  again (Agents page, edit, save; or the hub's start after an upgrade).
 
 ## WebUI
 

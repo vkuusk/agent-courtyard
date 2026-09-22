@@ -227,7 +227,7 @@ def main() -> int:
         assert agent, f"agent {args.agent!r} is not registered"
         assert agent.workdir, f"agent {args.agent!r} has no workdir"
         print(f"agent1: {agent.name} · workdir {agent.workdir} · model {args.model}")
-        result = admin.install(agent.name)  # fresh .mcp.json + .claude/settings.local.json
+        result = admin.connect(agent.name)  # fresh .mcp.json + .claude/settings.local.json
         print(f"installed: {result['path']}\n           {result['settings_path']}")
 
         # a stuck line from earlier testing would block the operator's send (item 10)

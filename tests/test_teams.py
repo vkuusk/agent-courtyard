@@ -859,3 +859,40 @@ def test_a_revived_name_gets_files_with_its_new_token(client, make_agent, tmp_pa
     _make_current(client, charter_dir)
     written = _courtyard_server(infra_dir)["env"]["COURTYARD_TOKEN"]
     assert written == _token(client, "infra") and written != old_token
+
+
+def test_connect_on_start_rewrites_the_files_once_per_hub_version(client, tmp_path):
+    """After an upgrade or a URL change the hub rewrites every registered agent's files
+    at start, with nothing for the operator to press; a restart of the same hub finds
+    the record and does nothing. Agents without a directory, removed agents and other
+    types are skipped."""
+    from courtyard.hub.core.teams import CONNECTED_KEY, hub_version
+
+    teams = client.app.state.teams
+    storage = client.app.state.storage
+    workdir = tmp_path / "scout"
+    workdir.mkdir()
+    client.post(
+        "/api/agents",
+        json={"name": "scout", "type": "claude-code", "workdir": str(workdir)},
+    )
+    client.post("/api/agents", json={"name": "nodir", "type": "claude-code"})
+    client.post("/api/agents", json={"name": "bot", "type": "dummy", "workdir": str(tmp_path)})
+
+    # the app start already recorded this hub, so the same stamp does nothing
+    assert teams.connect_on_start("http://127.0.0.1:2626") == []
+    assert not (workdir / ".mcp.json").exists()
+
+    # another URL (or, at an upgrade, another version) rewrites every directory
+    lines = teams.connect_on_start("http://127.0.0.1:2627")
+    assert len(lines) == 1 and lines[0].startswith("scout: courtyard files written into")
+    mcp = json.loads((workdir / ".mcp.json").read_text())
+    assert mcp["mcpServers"]["courtyard"]["env"]["COURTYARD_HUB_URL"] == "http://127.0.0.1:2627"
+    assert (workdir / "start-with-courtyard.sh").exists()
+    with storage.transaction() as uow:
+        assert uow.settings.get(CONNECTED_KEY) == f"{hub_version()}@http://127.0.0.1:2627"
+
+    # and once recorded, the next start with that URL is quiet again
+    (workdir / ".mcp.json").unlink()
+    assert teams.connect_on_start("http://127.0.0.1:2627") == []
+    assert not (workdir / ".mcp.json").exists()
