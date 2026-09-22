@@ -1,6 +1,6 @@
-"""`courtyard-invite`, the command-line register/install/remove (item 40): `--remove`
-is the full undo the docs promise (files out, agent off the hub, like the WebUI's
-remove), `--keep-registration` detaches the directory only."""
+"""`courtyard-invite`, the command-line register/connect/unregister: `--unregister` is
+the full undo (files out, agent off the hub, like the WebUI's remove, unregister);
+`--disconnect` takes the files out and leaves the agent registered."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def _run(capsys, *argv) -> str:
     return capsys.readouterr().out
 
 
-def test_remove_is_a_full_undo_and_keep_registration_is_not(live_hub, tmp_path, capsys):
+def test_unregister_is_a_full_undo_and_disconnect_is_not(live_hub, tmp_path, capsys):
     url = live_hub()
     workdir = tmp_path / "proj"
     workdir.mkdir()
@@ -34,13 +34,13 @@ def test_remove_is_a_full_undo_and_keep_registration_is_not(live_hub, tmp_path, 
     assert "registered cli-agent" in out and (workdir / ".mcp.json").exists()
     assert (workdir / ".gitignore").exists() and ".gitignore updated" in out
 
-    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--remove", "--keep-registration")
+    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--disconnect")
     assert "stays registered" in out and not (workdir / ".mcp.json").exists()
     assert not (workdir / ".gitignore").exists()  # held only our lines
     assert httpx.get(f"{url}/api/agents/cli-agent").json()["removed_at"] is None
 
     # nothing left to take out of the directory: the registration still goes
-    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--remove")
+    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--unregister")
     assert "nothing to take out" in out and "removed cli-agent from the hub" in out
     assert httpx.get(f"{url}/api/agents/cli-agent").json()["removed_at"] is not None
 
@@ -57,6 +57,6 @@ def test_remove_is_a_full_undo_and_keep_registration_is_not(live_hub, tmp_path, 
         "--workdir",
         str(workdir),
     )  # D36: the name is free again
-    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--remove")
+    out = _run(capsys, "--hub", url, "--name", "cli-agent", "--unregister")
     assert "removed the courtyard entry" in out and "removed cli-agent from the hub" in out
     assert not (workdir / ".mcp.json").exists()

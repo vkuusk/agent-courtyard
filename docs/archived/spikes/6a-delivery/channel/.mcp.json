@@ -1,5 +1,0 @@
-{
-  "mcpServers": {
-    "courtyard": { "command": "bun", "args": ["./courtyard-spike.ts"] }
-  }
-}

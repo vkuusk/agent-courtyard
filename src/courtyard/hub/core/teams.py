@@ -27,6 +27,7 @@ board's normal events.
 
 from __future__ import annotations
 
+import importlib.metadata
 from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -52,6 +53,15 @@ from courtyard.hub.storage.repo import Storage
 
 # the agent types whose sessions read courtyard files from their workdir; a dummy has none
 FILE_TYPES = ("claude-code", "pi")
+# settings row: which hub version and URL last wrote the agents' files (connect_on_start)
+CONNECTED_KEY = "connected_by"
+
+
+def hub_version() -> str:
+    try:
+        return importlib.metadata.version("courtyard")
+    except importlib.metadata.PackageNotFoundError:
+        return "dev"
 
 
 class TeamService:
@@ -445,6 +455,34 @@ class TeamService:
             problems.append(f"agent {name}: its courtyard files were not written: {exc}")
             return
         self._write_files(agent, token, hub_url, problems, files)
+
+    def connect_on_start(self, hub_url: str) -> list[str]:
+        """Called once at hub start. After an upgrade, or when the hub's URL changed, the
+        files in every registered agent's directory are stale (an older adapter, another
+        hub URL): rewrite them all, with each agent's stored token, so the operator has
+        nothing to press. The version and URL that wrote them are recorded under
+        CONNECTED_KEY; a restart of the same hub finds the record and does nothing. A
+        fresh database has no record and connects everyone, which after a reinstall is
+        the charter load's work as well, done twice without harm. Returns the report
+        lines (one per directory written or failed) for the log."""
+        stamp = f"{hub_version()}@{hub_url}"
+        with self._storage.transaction() as uow:
+            if uow.settings.get(CONNECTED_KEY) == stamp:
+                return []
+        files: list[str] = []
+        problems: list[str] = []
+        for agent in self._registry.list():
+            if agent.removed_at or agent.type not in FILE_TYPES or not agent.workdir:
+                continue
+            try:
+                token = self._registry.token_of(agent.name)
+            except DomainError as exc:
+                problems.append(f"agent {agent.name}: its courtyard files were not written: {exc}")
+                continue
+            self._write_files(agent, token, hub_url, problems, files)
+        with self._storage.transaction() as uow:
+            uow.settings.set(CONNECTED_KEY, stamp)
+        return files + problems
 
     @staticmethod
     def _write_files(

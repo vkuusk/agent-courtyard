@@ -13,7 +13,7 @@ import stat
 import pytest
 
 from courtyard.hub.core import install
-from courtyard.hub.core.errors import MalformedMcpJson, NothingToUninstall, WorkdirNotFound
+from courtyard.hub.core.errors import MalformedMcpJson, NothingToDisconnect, WorkdirNotFound
 
 CMD = "/abs/courtyard-claude-mcp"
 HUB = "http://127.0.0.1:2626"
@@ -112,7 +112,7 @@ def test_uninstall_removes_the_file_when_it_held_only_us(tmp_path):
 
 def test_uninstall_with_nothing_to_undo_raises(tmp_path):
     (tmp_path / ".mcp.json").write_text(json.dumps({"mcpServers": {"other": {}}}))
-    with pytest.raises(NothingToUninstall):
+    with pytest.raises(NothingToDisconnect):
         install.uninstall(str(tmp_path))
 
 
@@ -409,7 +409,7 @@ class TestPiInstall:
         assert not (tmp_path / ".pi/extensions/courtyard.ts").exists()
         assert not (tmp_path / "start-with-courtyard.sh").exists()
         assert not (tmp_path / ".pi/skills/courtyard").exists()
-        with pytest.raises(NothingToUninstall):
+        with pytest.raises(NothingToDisconnect):
             install.uninstall_pi(str(tmp_path))
 
     def test_uninstall_pi_restores_a_backed_up_foreign_extension(self, tmp_path):

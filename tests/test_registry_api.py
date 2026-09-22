@@ -305,7 +305,7 @@ def test_install_writes_mcp_json_into_the_workdir(client, tmp_path):
     ).json()
     token = created["token"]
 
-    resp = client.post("/api/agents/coding/install", json={"token": token})
+    resp = client.post("/api/agents/coding/connect", json={"token": token})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     target = tmp_path / ".mcp.json"
@@ -324,7 +324,7 @@ def test_install_uses_the_stored_token_when_none_is_given(client, tmp_path):
         "/api/agents",
         json={"name": "coding", "type": "claude-code", "workdir": str(tmp_path)},
     ).json()
-    resp = client.post("/api/agents/coding/install", json={})
+    resp = client.post("/api/agents/coding/connect", json={})
     assert resp.status_code == 200, resp.text
     import json as _json
 
@@ -337,7 +337,7 @@ def test_install_rejects_a_token_that_is_not_this_agents(client, make_agent, tmp
         "/api/agents", json={"name": "coding", "type": "claude-code", "workdir": str(tmp_path)}
     )
     _, other_token = make_agent("bob")
-    resp = client.post("/api/agents/coding/install", json={"token": other_token})
+    resp = client.post("/api/agents/coding/connect", json={"token": other_token})
     assert resp.status_code == 401
     assert resp.json()["error"]["code"] == "invalid_token"
     assert not (tmp_path / ".mcp.json").exists()  # nothing written on a bad token
@@ -345,20 +345,20 @@ def test_install_rejects_a_token_that_is_not_this_agents(client, make_agent, tmp
 
 def test_install_without_a_workdir_is_a_clear_error(client):
     created = client.post("/api/agents", json={"name": "coding", "type": "claude-code"}).json()
-    resp = client.post("/api/agents/coding/install", json={"token": created["token"]})
+    resp = client.post("/api/agents/coding/connect", json={"token": created["token"]})
     assert resp.status_code == 400
     assert resp.json()["error"]["code"] == "workdir_not_found"
 
 
-def test_install_then_uninstall_round_trips(client, tmp_path):
+def test_install_then_disconnect_round_trips(client, tmp_path):
     (tmp_path / ".mcp.json").write_text('{"mcpServers": {"other": {"command": "x"}}}')
     created = client.post(
         "/api/agents",
         json={"name": "coding", "type": "claude-code", "workdir": str(tmp_path)},
     ).json()
-    client.post("/api/agents/coding/install", json={"token": created["token"]})
+    client.post("/api/agents/coding/connect", json={"token": created["token"]})
 
-    resp = client.post("/api/agents/coding/uninstall", json={})
+    resp = client.post("/api/agents/coding/disconnect", json={})
     assert resp.status_code == 200 and resp.json()["restored_from_backup"] is True
     import json as _json
 
@@ -483,3 +483,47 @@ def test_an_unknown_name_is_refused_with_the_closest_names(client, make_agent):
     assert refusal("zzz") == (
         "no agent named 'zzz'; the agents on the board: alice, inventory-agent, operator, tf-dev-agent"
     )
+
+
+def test_disconnect_keeps_the_registration(client, tmp_path):
+    """Disconnect is the reverse of install and nothing more: the files leave the
+    directory, the agent stays registered with its token, and a second disconnect says
+    there is nothing left to take out."""
+    created = client.post(
+        "/api/agents",
+        json={"name": "scout", "type": "claude-code", "workdir": str(tmp_path)},
+    ).json()
+    client.post("/api/agents/scout/connect", json={"token": created["token"]})
+    assert (tmp_path / "start-with-courtyard.sh").exists()
+
+    resp = client.post("/api/agents/scout/disconnect", json={})
+    assert resp.status_code == 200 and resp.json()["script_removed"] is True
+    assert not (tmp_path / ".mcp.json").exists()
+    assert not (tmp_path / "start-with-courtyard.sh").exists()
+    assert client.get("/api/agents/scout").status_code == 200
+    assert client.get("/api/agents/scout").json()["removed_at"] is None
+
+    again = client.post("/api/agents/scout/disconnect", json={})
+    assert again.status_code == 404
+    assert again.json()["error"]["code"] == "nothing_to_disconnect"
+
+
+def test_disconnect_takes_an_explicit_directory(client, tmp_path):
+    """Save with a changed project directory disconnects the OLD directory: the WebUI
+    passes it explicitly, because by then the hub's stored directory is the new one."""
+    old, new = tmp_path / "old", tmp_path / "new"
+    old.mkdir()
+    new.mkdir()
+    created = client.post(
+        "/api/agents", json={"name": "mover", "type": "claude-code", "workdir": str(old)}
+    ).json()
+    client.post("/api/agents/mover/connect", json={"token": created["token"]})
+    client.patch("/api/agents/mover", json={"workdir": str(new)})
+
+    resp = client.post("/api/agents/mover/disconnect", json={"workdir": str(old)})
+    assert resp.status_code == 200 and resp.json()["script_removed"] is True
+    assert not (old / ".mcp.json").exists()
+
+    client.post("/api/agents/mover/connect", json={})
+    assert (new / ".mcp.json").exists() and (new / "start-with-courtyard.sh").exists()
+    assert client.get("/api/agents/mover").json()["workdir"] == str(new)

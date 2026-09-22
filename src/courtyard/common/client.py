@@ -260,11 +260,11 @@ class HubClient:
         """Push a delivery check to the agent (item 34): the on-demand card button."""
         self._call("POST", f"/api/agents/{name}/verify-delivery")
 
-    def install(self, name: str, token: str | None = None, workdir: str | None = None) -> dict:
+    def connect(self, name: str, token: str | None = None, workdir: str | None = None) -> dict:
         """Write the agent's `.mcp.json` into its workdir (dev mode). Returns {path, ...}.
         The hub keeps the token (D19); pass one only to insist on a specific value."""
         return self._call(
-            "POST", f"/api/agents/{name}/install", {"token": token, "workdir": workdir}
+            "POST", f"/api/agents/{name}/connect", {"token": token, "workdir": workdir}
         )
 
     def token_of(self, name: str) -> str:
@@ -276,8 +276,9 @@ class HubClient:
         data = self._call("POST", f"/api/agents/{name}/token")
         return Agent.model_validate(data["agent"]), data["token"]
 
-    def uninstall(self, name: str, workdir: str | None = None) -> dict:
-        return self._call("POST", f"/api/agents/{name}/uninstall", {"workdir": workdir})
+    def disconnect(self, name: str, workdir: str | None = None) -> dict:
+        """Take the courtyard files out of the agent's directory; registration and charter stay."""
+        return self._call("POST", f"/api/agents/{name}/disconnect", {"workdir": workdir})
 
     def lines(self) -> list[Line]:
         return [Line.model_validate(li) for li in self._call("GET", "/api/lines")]

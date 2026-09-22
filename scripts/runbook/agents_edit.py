@@ -2,8 +2,8 @@
 
   1. PATCH /api/agents/{name}: edit description/owns/workdir/model/colour; null clears;
      name and identity are refused; the operator record is refused
-  2. remove with directory cleanup: uninstall first (courtyard pieces leave the files),
-     then delete — the item-15 order
+  2. unregister: disconnect first (the courtyard files leave the directory), then
+     delete — the WebUI's order
   3. Defaults: default_line_mode round trip (restored afterwards); a NEW line follows it
 
 Safe against the dev hub: throwaway agents, a temp workdir, and the settings value is
@@ -52,11 +52,11 @@ for label, target, patch in (
     except HubError as exc:
         print(f"{label:14}: refused ({exc.code})")
 
-hr("2. REMOVE WITH CLEANUP  (item 15: uninstall, then delete)")
-admin._call("POST", f"/api/agents/{name}/install", {})
+hr("2. UNREGISTER  (disconnect, then delete)")
+admin._call("POST", f"/api/agents/{name}/connect", {})
 has_entry = "courtyard" in json.loads((workdir / ".mcp.json").read_text())["mcpServers"]
 print(f"installed     : courtyard entry in .mcp.json = {has_entry}")
-admin._call("POST", f"/api/agents/{name}/uninstall", {})
+admin._call("POST", f"/api/agents/{name}/disconnect", {})
 admin._call("DELETE", f"/api/agents/{name}")
 left = json.loads((workdir / ".mcp.json").read_text()) if (workdir / ".mcp.json").exists() else {}
 print(

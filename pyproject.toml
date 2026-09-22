@@ -1,6 +1,6 @@
 [project]
 name = "courtyard"
-version = "0.1.7"
+version = "0.1.8"
 description = "Agent Courtyard - a local communication hub for your team of AI agents"
 license = "MIT"
 requires-python = ">=3.12"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/vkuusk/cbx-agent-courtyard"
+Repository = "https://github.com/vkuusk/agent-courtyard"
 
 [project.scripts]
 courtyard-hub = "courtyard.hub.main:cli"

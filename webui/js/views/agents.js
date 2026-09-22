@@ -1,12 +1,14 @@
-// Agents page (reworked in WP-D, items 4/8/15): the registry — list with liveness, rows
-// with edit + remove only; the Edit Agent view holds the editable fields plus launch
-// config and rotate token; removal offers directory cleanup. Clicking a row selects
-// that agent for the input box at the bottom.
+// Agents page: the registry — list with liveness, and three actions per row. `edit` is
+// where the agent is changed: save writes the record, the charter and the files in the
+// agent's directory (connect); rotate token connects at once. `launch config` shows the
+// files as they are on disk, read-only. `remove ▾` offers disconnect (files out, agent
+// stays) and unregister (files out, agent off the hub and the charter). Every operation
+// has one place. Clicking a row selects that agent for the input box at the bottom.
 
 import { html, useEffect, useState } from "../../vendor/htm-preact-standalone.module.js";
 import { api, ApiError } from "../api.js";
 import { store, select, currentTeam, applyTeams } from "../store.js";
-import { useStore, fmtAgo, CopyButton, COLORS, leastUsedColor } from "../ui.js";
+import { useStore, fmtAgo, CopyButton, COLORS, leastUsedColor, toast } from "../ui.js";
 
 // Write-back (design team-charter.md, D33 slice 3): while a team is current, agent
 // changes are also written into its charter files — these helpers say so on the forms.
@@ -18,7 +20,7 @@ const charterOf = (agentName) => {
 };
 
 // The launch command; the agent's declared model rides along so nobody forgets to set it.
-// The channels preview drifted twice in four days (feedback item 11): 2.1.241 stopped
+// The channels preview drifted twice in four days: 2.1.241 stopped
 // honouring this flag, 2.1.245 restored it — and made the two-flag workaround fail. This
 // single-flag form is verified end-to-end by tests/communications/oper-agent1-oper.py.
 // --settings approves the courtyard MCP server for the launch: Claude Code ignores the
@@ -82,61 +84,60 @@ function claudeScript(agent) {
   ].join("\n");
 }
 
-// One-click install: ask the hub to write .mcp.json into the agent's workdir (dev mode,
-// design §8/D8, 6d). The hub keeps the token (D19), so nothing secret crosses the browser.
-function InstallButton({ agent }) {
-  const [state, setState] = useState({});
-  const workdir = agent.workdir;
-  const run = async () => {
-    setState({ busy: true });
-    try {
-      setState({ result: await api.installAgent(agent.name, workdir) });
-    } catch (err) {
-      setState({ error: err.message });
-    }
-  };
-  return html`<div style="margin-top:.8rem">
-    <button class="btn install" data-color=${agent.color}
-      disabled=${!workdir || state.busy || state.result} onClick=${run}>
-      ${workdir ? `write the files into ${workdir}` : "write the files (set a workdir first)"}</button>
-    ${state.busy ? html`<div class="small muted">writing…</div>` : null}
-    ${state.result
-      ? html`<div class="small" style="margin-top:.4rem"><div>Wrote ${state.result.path}</div>
-          ${state.result.backed_up ? html`<div class="muted">backed up to ${state.result.backed_up}</div>` : null}
-          ${state.result.settings_path ? html`<div>Wrote ${state.result.settings_path}</div>` : null}
-          ${state.result.settings_backed_up ? html`<div class="muted">backed up to ${state.result.settings_backed_up}</div>` : null}
-          ${state.result.script_path ? html`<div>Wrote ${state.result.script_path}</div>` : null}
-          ${state.result.script_backed_up ? html`<div class="muted">backed up to ${state.result.script_backed_up}</div>` : null}
-          <div class="warn" style="margin-top:.3rem">${state.result.warning}</div></div>`
-      : null}
-    ${state.error ? html`<div class="error" style="margin-top:.4rem">${state.error}</div>` : null}
-  </div>`;
-}
+// Which agents have files in a directory: connect and disconnect apply to these only
+// (a dummy is a command line, the operator is a person).
+const hasFiles = (agent) => agent.type === "claude-code" || agent.type === "pi";
 
-// "sync dir" on the agent's row (his feedback, 2026-09-11): the launch config's "write the
-// files" without opening the Edit view, for rewriting an agent's files often (a hub
-// reinstall, a courtyard upgrade, a rotated token). Same hub call, same files.
-function SyncDirButton({ agent }) {
-  const [state, setState] = useState({});
-  const workdir = agent.workdir;
-  const run = async (e) => {
-    e.stopPropagation(); // not a row click: the selection stays where it is
-    setState({ busy: true });
+// `remove ▾` on the row: disconnect (the files leave the directory, the agent stays
+// registered and in the charter; reversible, so it acts at once) or unregister (the
+// dialog). One menu, so the row keeps three buttons.
+function RemoveMenu({ agent, onUnregister }) {
+  const [open, setOpen] = useState(null); // null = closed; {top, right} = where to draw it
+  // fixed positioning: the table clips absolute children, and the menu must outlive the cell
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (open) return setOpen(null);
+    const r = e.currentTarget.getBoundingClientRect();
+    setOpen({ top: r.bottom + 4, right: window.innerWidth - r.right });
+  };
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(null);
+    document.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
+  const disconnect = async () => {
+    setOpen(null);
+    // the result as a toast: a note in the row would reflow the table
     try {
-      const result = await api.installAgent(agent.name, workdir);
-      setState({ done: result.warning });
-      setTimeout(() => setState((s) => (s.done ? {} : s)), 6000);
+      await api.disconnectAgent(agent.name);
+      toast(`${agent.name} disconnected: the courtyard files left ${agent.workdir}`);
     } catch (err) {
-      setState({ error: err.message });
+      if (err.code === "nothing_to_disconnect") toast(`${agent.name}: nothing to take out of ${agent.workdir}`);
+      else toast(`${agent.name}: ${err.message}`, { error: true });
     }
   };
-  const title = workdir
-    ? `Write this agent's courtyard files into ${workdir}. A running session picks them up at its next start.`
-    : "Set a project directory first (edit).";
-  return html`<button class="btn" title=${title} disabled=${!workdir || state.busy} onClick=${run}>
-      ${state.busy ? "syncing…" : "sync dir"}</button>
-    ${state.done ? html`<span class="small muted sync-note" title=${state.done}>synced</span>` : null}
-    ${state.error ? html`<span class="small error sync-note">${state.error}</span>` : null}`;
+  const canDisconnect = hasFiles(agent) && Boolean(agent.workdir);
+  return html`<span class="menu-wrap" onKeyDown=${(e) => e.key === "Escape" && setOpen(null)}>
+    <button class="btn danger" aria-haspopup="menu" aria-expanded=${Boolean(open)}
+      onClick=${toggle}>remove ▾</button>
+    ${open
+      ? html`<div class="menu" role="menu" style=${`top:${open.top}px;right:${open.right}px`}
+          onClick=${(e) => e.stopPropagation()}>
+          <button class="btn" role="menuitem" disabled=${!canDisconnect} onClick=${disconnect}
+            title=${canDisconnect
+              ? `Take the courtyard files out of ${agent.workdir}. ${agent.name} stays on the team; save in edit connects the directory again.`
+              : "nothing to disconnect: no project directory"}>disconnect</button>
+          <button class="btn danger" role="menuitem"
+            title="Take the files out and remove the agent from the hub and the team charter"
+            onClick=${() => { setOpen(null); onUnregister(agent); }}>unregister</button>
+        </div>`
+      : null}
+  </span>`;
 }
 
 function DummyPanel({ agent, token }) {
@@ -205,9 +206,10 @@ function PiPanel({ agent }) {
       automatically; there is no flag to remember, and starting the
       agent is <code>./start-with-courtyard.sh</code> (or <code>pi</code>, with <code>--model</code> when the agent
       declares a model) in its directory.</div>
-    <${InstallButton} agent=${agent} />
-    <div class="small muted" style="margin-top:.8rem">If the hub cannot see the directory (live
-      mode), run <code>uv run courtyard-invite --register</code> for this agent on the machine that can.</div>
+    <div class="small muted" style="margin-top:.8rem">The hub writes it, and the start script, into
+      ${agent.workdir ? html`<code>${agent.workdir}</code>` : "the agent's directory"} whenever the agent is saved or
+      its token rotated. If the hub cannot see the directory (live mode), run
+      <code>uv run courtyard-invite --register</code> for this agent on the machine that can.</div>
   </div>`;
 }
 
@@ -226,13 +228,16 @@ function ClaudePanel({ agent, token, adapterCommand }) {
       script carries the channel flag, needed while channels are in research preview (a bare claude session
       cannot hear the hub):</div>
     <pre class="cmd">${script}</pre><${CopyButton} text=${script} />
-    <div class="small muted" style="margin-top:.8rem">…or let the hub write all three files for you (dev mode; the hub must share this machine's disk):</div>
-    <${InstallButton} agent=${agent} />
+    <div class="small muted" style="margin-top:.8rem">${agent.workdir
+      ? html`These three files are written into <code>${agent.workdir}</code> whenever the agent is saved
+          or its token rotated (dev mode; the hub shares this machine's disk). Copy them by hand only
+          where the hub cannot see the directory.`
+      : "Set a project directory (edit) and the hub writes these three files there on save."}</div>
   </div>`;
 }
 
-// The launch config for one agent: its .mcp.json block (or dummy command) with the token.
-// Opens after registration, and again any time from the list — the hub keeps the token.
+// The launch config for one agent, read-only: the files as the hub writes them (or the
+// dummy's command) with the token. Opens any time from the list — the hub keeps the token.
 function LaunchPanel({ agent, token, note, adapterCommand, onClose }) {
   return html`<div class="panel ok">
     <div class="panel-head"><h3>${agent.name} · launch config</h3>
@@ -243,8 +248,8 @@ function LaunchPanel({ agent, token, note, adapterCommand, onClose }) {
       : agent.type === "pi"
         ? html`<${PiPanel} agent=${agent} />`
         : html`<${DummyPanel} agent=${agent} token=${token} />`}
-    <div class="small muted" style="margin-top:.8rem">The hub keeps this token; open this again any time with
-      "launch config" in the list; "rotate token" replaces it.</div>
+    <div class="small muted" style="margin-top:.8rem">The hub keeps this token; "rotate token" under edit
+      replaces it and rewrites the files.</div>
   </div>`;
 }
 
@@ -253,8 +258,8 @@ function NoTokenPanel({ agent, onRotate, onClose }) {
     <div class="panel-head"><h3>${agent.name} · no stored token</h3>
       <button class="link" onClick=${onClose}>close</button></div>
     <div class="small" style="margin-bottom:.6rem">${agent.name} was registered before the hub kept tokens, so its
-      launch config cannot be shown. Rotate its token to get one; its running session will then need the new
-      .mcp.json and a restart.</div>
+      launch config cannot be shown. Rotate its token to get one; the files are written into its directory
+      and its running session then needs a restart.</div>
     <button class="btn" onClick=${() => onRotate(agent)}>rotate token</button>
   </div>`;
 }
@@ -333,38 +338,62 @@ function AddForm({ onCreated, suggested }) {
   </form>`;
 }
 
-// The Edit Agent view (item 8): everything about one agent in one place — the editable
-// fields (name and type are permanent identities), plus launch config and rotate token,
-// which moved here from the list rows.
-function EditPanel({ agent, onLaunch, onRotate, onClose }) {
+// The Edit Agent view: everything that changes the agent, in one place. Save writes the
+// record and the charter, then connects the directory (the three files, or pi's two); a
+// changed directory is disconnected first, so no old directory keeps a live token. Rotate
+// token acts at once (the old token dies immediately) and connects the directory too.
+function EditPanel({ agent, note, onRotate, onClose }) {
   const [error, setError] = useState(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(null);
   const [picked, setPicked] = useState(agent.color);
   const [workdir, setWorkdir] = useState(agent.workdir ?? "");
+  const [busy, setBusy] = useState(false);
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSaved(false);
+    setSaved(null);
+    setBusy(true);
     const data = new FormData(e.currentTarget);
     const text = (k) => (data.get(k) || "").trim() || null;
+    const oldDir = agent.workdir || null;
+    const newDir = text("workdir");
+    const notes = [];
     try {
+      if (hasFiles(agent) && oldDir && newDir !== oldDir) {
+        try {
+          await api.disconnectAgent(agent.name, oldDir);
+          notes.push(`the files left ${oldDir}`);
+        } catch (err) {
+          if (err.code !== "nothing_to_disconnect") notes.push(`could not clean ${oldDir}: ${err.message}`);
+        }
+      }
       const updated = await api.patchAgent(agent.name, {
         description: text("description"),
         sme_domain: text("sme_domain"),
         anti_scope: text("anti_scope"),
-        workdir: text("workdir"),
+        workdir: newDir,
         model: text("model"),
         color: picked,
       });
       store.agents.set(updated.id, updated);
-      setSaved(true);
+      if (hasFiles(updated) && updated.workdir) {
+        try {
+          await api.connectAgent(updated.name, updated.workdir);
+          notes.push(`files written into ${updated.workdir}; a running session picks them up at its next start`);
+        } catch (err) {
+          notes.push(`the files were not written into ${updated.workdir}: ${err.message}`);
+        }
+      }
+      setSaved(notes.length ? `saved; ${notes.join("; ")}` : "saved");
     } catch (err) {
       setError(err.message);
     }
+    setBusy(false);
   };
   return html`<div class="panel ok">
     <div class="panel-head"><h3><span class="chip" data-color=${picked}>${agent.name}</span> · edit</h3>
       <button class="link" onClick=${onClose}>close</button></div>
+    ${note ? html`<div class="warn" style="margin-bottom:.6rem">${note}</div>` : null}
     <form class="add-form" onSubmit=${submit}>
       <div class="form-row">
         <span class="small muted">${agent.type} · name and type are permanent</span>
@@ -384,35 +413,35 @@ function EditPanel({ agent, onLaunch, onRotate, onClose }) {
         defaultValue=${agent.sme_domain ?? ""}></textarea>
       <textarea name="anti_scope" rows="2" placeholder="what is it NOT for? (tells peers whom not to ask)"
         defaultValue=${agent.anti_scope ?? ""}></textarea>
-      ${charterOf(agent.name)
-        ? html`<div class="small muted">${agent.name} is a charter agent of the current team:
-            saved changes are also written into <code>${charterOf(agent.name).charter_dir}</code>
-            (the project directory goes to <code>workdirs.local.yml</code>, per machine).</div>`
-        : null}
+      <div class="small muted">${charterOf(agent.name)
+        ? html`${agent.name} is a charter agent of the current team: saved changes are also written
+            into <code>${charterOf(agent.name).charter_dir}</code> (the project directory goes to
+            <code>workdirs.local.yml</code>, per machine). `
+        : null}${hasFiles(agent)
+        ? "Save also writes the agent's courtyard files into its project directory."
+        : null}</div>
       <div class="form-row">
-        <button class="btn primary">save</button>
-        <button type="button" class="btn" onClick=${() => onLaunch(agent)}>launch config</button>
-        <button type="button" class="btn" onClick=${() => onRotate(agent)}>rotate token</button>
-        ${saved ? html`<span class="small muted">saved; model and status-line changes reach the agent at its next install + restart</span>` : null}
+        <button class="btn primary" disabled=${busy}>${busy ? "saving…" : "save"}</button>
+        <button type="button" class="btn" disabled=${busy} onClick=${() => onRotate(agent)}>rotate token</button>
+        ${saved ? html`<span class="small muted">${saved}</span>` : null}
         ${error ? html`<div class="error">${error}</div>` : null}
       </div>
     </form>
   </div>`;
 }
 
-// Removal asks about the agent's directory too (item 15): removing from the hub and
-// leaving a dead token in the project is the half-done state that bit us after db-nuke.
-function RemoveDialog({ agent, onClose }) {
-  const [cleanup, setCleanup] = useState(Boolean(agent.workdir));
+// Unregister: the files leave the directory first (a dead token left in a project is the
+// half-done state that bit us after db-nuke), then the agent leaves the hub and the charter.
+function UnregisterDialog({ agent, onClose }) {
   const [busy, setBusy] = useState(false);
   const doRemove = async () => {
     setBusy(true);
-    if (cleanup && agent.workdir) {
+    if (hasFiles(agent) && agent.workdir) {
       try {
-        await api.uninstallAgent(agent.name);
+        await api.disconnectAgent(agent.name);
       } catch (err) {
-        if (err.code !== "nothing_to_uninstall") {
-          alert(`Directory cleanup failed: ${err.message}\n\nRemoving the agent anyway.`);
+        if (err.code !== "nothing_to_disconnect") {
+          alert(`The files could not be taken out of ${agent.workdir}: ${err.message}\n\nUnregistering anyway.`);
         }
       }
     }
@@ -426,8 +455,8 @@ function RemoveDialog({ agent, onClose }) {
   };
   return html`<div class="overlay" onClick=${(e) => e.target === e.currentTarget && onClose(false)}
       onKeyDown=${(e) => e.key === "Escape" && onClose(false)}>
-    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="Remove ${agent.name}">
-      <h3>Remove ${agent.name} from the courtyard?</h3>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="Unregister ${agent.name}">
+      <h3>Unregister ${agent.name}?</h3>
       <p>Its token stops working at once; its conversations move to the Archive. The name
         stays taken; names are permanent identities.</p>
       ${charterOf(agent.name)
@@ -435,17 +464,16 @@ function RemoveDialog({ agent, onClose }) {
             from the charter files (its entry, links and configuration directory in
             <code>${charterOf(agent.name).charter_dir}</code>).</p>`
         : null}
-      ${agent.workdir
-        ? html`<label class="small" style="display:flex;gap:.5rem;align-items:baseline">
-            <input type="checkbox" checked=${cleanup} onChange=${(e) => setCleanup(e.target.checked)} />
-            <span>also clean up its project directory: takes the courtyard pieces back out of
-              <code>.mcp.json</code> and <code>.claude/settings.local.json</code> in ${agent.workdir}
-              (a running session is not stopped; the dead token locks it out)</span></label>`
+      ${hasFiles(agent) && agent.workdir
+        ? html`<p>The courtyard files leave ${agent.workdir} first: the courtyard entries in
+            <code>.mcp.json</code> and <code>.claude/settings.local.json</code>, and
+            <code>start-with-courtyard.sh</code> (a running session is not stopped; the dead
+            token locks it out).</p>`
         : null}
       <div class="form-row" style="justify-content:flex-end">
         <button class="btn" onClick=${() => onClose(false)}>cancel</button>
         <button class="btn danger" disabled=${busy} ref=${(el) => el?.focus()}
-          onClick=${doRemove}>${busy ? "removing…" : "remove"}</button>
+          onClick=${doRemove}>${busy ? "unregistering…" : "unregister"}</button>
       </div>
     </div>
   </div>`;
@@ -456,9 +484,9 @@ const HEADERS = ["agent", "type", "description", "owns", "status", "last seen", 
 export function Agents() {
   useStore();
   // {agent, token, note} = launch config · {agent, missing} = no stored token ·
-  // {agent, edit} = the Edit Agent view (item 8)
+  // {agent, edit, note} = the Edit Agent view
   const [panel, setPanel] = useState(null);
-  const [removing, setRemoving] = useState(null); // agent in the remove dialog (item 15)
+  const [removing, setRemoving] = useState(null); // agent in the unregister dialog
   const [adapterCommand, setAdapterCommand] = useState("courtyard-claude-mcp");
   useEffect(() => {
     api.config().then((c) => setAdapterCommand(c.adapter_command)).catch(() => {});
@@ -478,21 +506,31 @@ export function Agents() {
       else alert(err.message);
     }
   };
-  const rotate = async (agent) => {
+  // Rotation acts at once and connects the directory itself, so no directory holds the
+  // dead token longer than the call takes. From edit it reports there; from the no-token
+  // panel it opens the launch config that now exists.
+  const rotate = async (agent, { stayInEdit = false } = {}) => {
     const sure = confirm(
-      `Rotate ${agent.name}'s token?\n\nThe old one stops working at once: its running session ` +
-        "can no longer reach the hub until you write the new .mcp.json (or restart the dummy " +
-        "with the new command).",
+      `Rotate ${agent.name}'s token?\n\nThe old one stops working at once. The files in the ` +
+        "agent's directory are rewritten with the new token; its running session needs a restart " +
+        "(a dummy: restart it with the new command).",
     );
     if (!sure) return;
     try {
       const r = await api.rotateToken(agent.name);
       store.agents.set(r.agent.id, r.agent);
-      setPanel({
-        agent: r.agent,
-        token: r.token,
-        note: "Token rotated. The old one no longer works. Write the new .mcp.json and restart the agent.",
-      });
+      let note = "Token rotated; the old one no longer works.";
+      if (hasFiles(r.agent) && r.agent.workdir) {
+        try {
+          await api.connectAgent(r.agent.name, r.agent.workdir);
+          note += ` Files written into ${r.agent.workdir}; restart the agent.`;
+        } catch (err) {
+          note += ` The files were not written into ${r.agent.workdir}: ${err.message}`;
+        }
+      } else if (r.agent.type === "dummy") {
+        note += " Restart the dummy with the new command (launch config).";
+      }
+      setPanel(stayInEdit ? { agent: r.agent, edit: true, note } : { agent: r.agent, token: r.token, note });
     } catch (err) {
       alert(err.message);
     }
@@ -507,11 +545,23 @@ export function Agents() {
     if (removed) refreshTeams();
     setRemoving(null);
   };
-  const onCreated = (c) => {
+  // Registration is the first save: an agent with a directory gets its files at once.
+  const onCreated = async (c) => {
     store.agents.set(c.agent.id, c.agent); // the SSE event follows; don't wait for it
-    setPanel({ agent: c.agent, token: c.token, note: "Registered." });
     select({ kind: "agent", id: c.agent.id });
     refreshTeams();
+    let note = "Registered.";
+    if (hasFiles(c.agent) && c.agent.workdir) {
+      try {
+        await api.connectAgent(c.agent.name, c.agent.workdir);
+        note = `Registered; files written into ${c.agent.workdir}.`;
+      } catch (err) {
+        note = `Registered; the files were not written into ${c.agent.workdir}: ${err.message}`;
+      }
+    } else if (hasFiles(c.agent)) {
+      note = "Registered. Set a project directory (edit) and save: the files are written there.";
+    }
+    setPanel({ agent: c.agent, token: c.token, note });
   };
   const stop = (fn) => (e) => {
     e.stopPropagation();
@@ -535,8 +585,8 @@ export function Agents() {
           <td>${pickable
             ? html`<div class="actions">
                 <button class="btn" onClick=${stop(() => setPanel({ agent: a, edit: true }))}>edit</button>
-                ${a.type === "claude-code" || a.type === "pi" ? html`<${SyncDirButton} agent=${a} />` : null}
-                <button class="btn danger" onClick=${stop(() => setRemoving(a))}>remove</button></div>`
+                <button class="btn" onClick=${stop(() => open(a))}>launch config</button>
+                <${RemoveMenu} agent=${a} onUnregister=${setRemoving} /></div>`
             : html`<span class="muted small">—</span>`}</td>
         </tr>`;
       })}</tbody>
@@ -546,15 +596,15 @@ export function Agents() {
     ${panel?.missing
       ? html`<${NoTokenPanel} agent=${panel.agent} onRotate=${rotate} onClose=${() => setPanel(null)} />`
       : panel?.edit
-        ? html`<${EditPanel} key=${panel.agent.id}
+        ? html`<${EditPanel} key=${panel.agent.id} note=${panel.note}
             agent=${store.agents.get(panel.agent.id) ?? panel.agent}
-            onLaunch=${open} onRotate=${rotate} onClose=${() => setPanel(null)} />`
+            onRotate=${(a) => rotate(a, { stayInEdit: true })} onClose=${() => setPanel(null)} />`
         : panel
           ? html`<${LaunchPanel} key=${`${panel.agent.id}:${panel.token}`}
               agent=${store.agents.get(panel.agent.id) ?? panel.agent} token=${panel.token}
               note=${panel.note} adapterCommand=${adapterCommand} onClose=${() => setPanel(null)} />`
           : null}
-    ${removing ? html`<${RemoveDialog} agent=${removing} onClose=${closeRemove} />` : null}
+    ${removing ? html`<${UnregisterDialog} agent=${removing} onClose=${closeRemove} />` : null}
     <${AddAgentPanel} onCreated=${onCreated} />`;
 }
 

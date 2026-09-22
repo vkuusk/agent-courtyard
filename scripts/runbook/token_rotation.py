@@ -12,6 +12,7 @@ Throwaway: it registers one agent under a temp workdir and removes both at the e
 """
 
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -19,7 +20,7 @@ from pathlib import Path
 
 from courtyard.common.client import HubClient, HubError
 
-HUB = "http://127.0.0.1:2626"
+HUB = os.environ.get("COURTYARD_HUB_URL", "http://127.0.0.1:2626")
 DEAD_ENDPOINT = "http://127.0.0.1:9/"  # attach wants a local URL; nothing will be pushed here
 
 
@@ -49,7 +50,7 @@ stored = admin.token_of(name)
 print(f"stored token : {mask(stored)}   <- same as at registration? {stored == token}")
 
 hr("2. INSTALL WITHOUT PASSING A TOKEN  (the hub writes the stored one)")
-result = admin.install(name, workdir=str(workdir))
+result = admin.connect(name, workdir=str(workdir))
 print(f"wrote        : {result['path']}")
 print(
     f"token in file: {mask(token_in_file())}   <- equals the stored one? {token_in_file() == stored}"
@@ -71,11 +72,11 @@ print(f"new token    : inbox read OK -> {HubClient(HUB, name=name, token=new).in
 print(f"read back    : {mask(admin.token_of(name))}   <- the new one")
 
 hr("4. RE-INSTALL  (writes the new token)")
-again = admin.install(name, workdir=str(workdir))
+again = admin.connect(name, workdir=str(workdir))
 print(f"replaced the courtyard entry: {again['replaced_server']}")
 print(f"token in file now equals the new token: {token_in_file() == new}")
 
-admin.uninstall(name, str(workdir))
+admin.disconnect(name, str(workdir))
 admin._call("DELETE", f"/api/agents/{name}")
 as_agent.close()
 admin.close()

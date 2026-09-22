@@ -4,7 +4,7 @@ Runs against its OWN throwaway hub on a scratch database — never the dev hub �
 producing a stale shift means seeding the shift document directly. The seeded window
 refs point at a tty that does not exist, so nothing real is ever opened or closed; the
 script never calls resume/start on the stale shift (those would spawn real terminals —
-that is the manual procedure in docs/testing-runbook.md).
+that is the manual procedure in docs/testing.md).
 
   1. a shift document says `on`, every agent is offline, every window is dead
      -> after the liveness grace, GET /api/shift reports stale: true

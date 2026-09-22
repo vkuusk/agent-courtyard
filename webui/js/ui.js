@@ -78,3 +78,16 @@ export function CopyButton({ text }) {
       setTimeout(() => setDone(false), 1500);
     })}>${done ? "copied ✓" : "copy"}</button>`;
 }
+
+// A short message that moves nothing: fixed at the bottom of the window, gone after a few
+// seconds. For one-click actions whose feedback would otherwise reflow a table row. Plain
+// DOM on purpose: no component state, so no re-render anywhere.
+export function toast(text, { error = false, seconds = 4 } = {}) {
+  const el = document.createElement("div");
+  el.className = `toast ${error ? "error" : ""}`;
+  el.setAttribute("role", "status");
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add("gone"), seconds * 1000 - 300);
+  setTimeout(() => el.remove(), seconds * 1000);
+}

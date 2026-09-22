@@ -1,5 +1,5 @@
 """Runbook check: an answer says where its result belongs (design
-communication-protocols.md sections 3.3 and 6.3; feedback item 45).
+communication-protocols.md sections 3.3 and 6.3).
 
 The hub cannot see a terminal, so it cannot know that a user typed a request there. It
 does know on which lines an agent is still awaited, and the footer of every answer says

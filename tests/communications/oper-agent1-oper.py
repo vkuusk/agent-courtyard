@@ -16,7 +16,7 @@ Defaults come from `communication-test-config.yml` next to this script (keys: hu
 agent1, model, timeout); a CLI flag overrides the file.
 
 It starts a hub if none is running (and stops it after). On failure it prints the three
-diagnostics that separate every failure class we have seen (feedback items 10/11):
+diagnostics that separate every failure class we have seen:
   - the test message's hub status (queued = push failed; delivered = the adapter took it)
   - the session's channel verdict from Claude Code's MCP log ("registered" vs "skipped")
   - the tail of the live terminal screen
@@ -50,9 +50,9 @@ ANSI = re.compile(
 )
 MCP_LOG_ROOT = Path.home() / "Library/Caches/claude-cli-nodejs"
 
-# The one launch form that registers the channel on current Claude Code (2.1.245; see
-# feedback item 11 — 2.1.241 briefly required --channels, 2.1.245 reverted AND made the
-# two-flag combo fail the allowlist check). Verified by probe on 2026-08-24.
+# The one launch form that registers the channel on current Claude Code (2.1.245:
+# 2.1.241 briefly required --channels, 2.1.245 reverted AND made the two-flag combo
+# fail the allowlist check). Verified by probe on 2026-08-24.
 CHANNEL_FLAGS = ["--dangerously-load-development-channels", "server:courtyard"]
 
 # TUI dialogs we answer with Enter (the highlighted default) exactly once each.
@@ -227,7 +227,7 @@ def main() -> int:
         assert agent, f"agent {args.agent!r} is not registered"
         assert agent.workdir, f"agent {args.agent!r} has no workdir"
         print(f"agent1: {agent.name} · workdir {agent.workdir} · model {args.model}")
-        result = admin.install(agent.name)  # fresh .mcp.json + .claude/settings.local.json
+        result = admin.connect(agent.name)  # fresh .mcp.json + .claude/settings.local.json
         print(f"installed: {result['path']}\n           {result['settings_path']}")
 
         # a stuck line from earlier testing would block the operator's send (item 10)

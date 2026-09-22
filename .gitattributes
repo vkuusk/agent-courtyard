@@ -4,6 +4,4 @@
 .github/            export-ignore
 .claude/            export-ignore
 .gitattributes      export-ignore
-docs/planning/      export-ignore
-docs/archived/      export-ignore
 sandbox/            export-ignore

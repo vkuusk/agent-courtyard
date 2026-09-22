@@ -31,7 +31,7 @@ class AgentCreate(BaseModel):
     workdir: str | None = None
     launch: dict[str, Any] | None = None
     color: AgentColor | None = None  # omitted = the hub picks the least-used colour
-    # the model its runtime should use (feedback item 1); install writes it into the
+    # the model its runtime should use; install writes it into the
     # agent's settings and the launch command shows it
     model: str | None = Field(default=None, max_length=120)
 
@@ -191,14 +191,14 @@ def rotate_token(
     return AgentCreated(agent=agent, token=new)
 
 
-class InstallRequest(BaseModel):
+class ConnectRequest(BaseModel):
     # The hub keeps the token (D19), so none need be passed; one that is passed must belong
     # to this agent before it is written into the file. workdir defaults to the agent's own.
     token: str | None = None
     workdir: str | None = None
 
 
-class InstallResponse(BaseModel):
+class ConnectResponse(BaseModel):
     path: str
     backed_up: str | None
     replaced_server: bool
@@ -210,13 +210,13 @@ class InstallResponse(BaseModel):
     gitignore: str | None = None  # .gitignore updated with the token-carrying names (item 28)
 
 
-@router.post("/{name_or_id}/install")
-def install(
+@router.post("/{name_or_id}/connect")
+def connect(
     name_or_id: str,
-    body: InstallRequest,
+    body: ConnectRequest,
     request: Request,
     registry: Annotated[Registry, Depends(get_registry)],
-) -> InstallResponse:
+) -> ConnectResponse:
     """Write the agent's `.mcp.json` into its workdir (dev mode; design §8/D8, 6d).
 
     Admin surface (localhost, D3). The caller proves it holds the agent's token by passing
@@ -236,14 +236,14 @@ def install(
         )
     hub_url = str(request.base_url).rstrip("/")
     result = install_core.install_agent(agent, workdir, hub_url, token)
-    return InstallResponse(**result.__dict__)
+    return ConnectResponse(**result.__dict__)
 
 
-class UninstallRequest(BaseModel):
+class DisconnectRequest(BaseModel):
     workdir: str | None = None
 
 
-class UninstallResponse(BaseModel):
+class DisconnectResponse(BaseModel):
     path: str
     restored_from_backup: bool
     removed_server: bool
@@ -254,13 +254,16 @@ class UninstallResponse(BaseModel):
     gitignore_cleaned: bool = False
 
 
-@router.post("/{name_or_id}/uninstall")
-def uninstall(
+@router.post("/{name_or_id}/disconnect")
+def disconnect(
     name_or_id: str,
-    body: UninstallRequest,
+    body: DisconnectRequest,
     registry: Annotated[Registry, Depends(get_registry)],
-) -> UninstallResponse:
-    """Reverse an install: restore the pre-install `.mcp.json`, or drop just our entry."""
+) -> DisconnectResponse:
+    """The reverse of install: take the courtyard files out of the agent's directory
+    (a pre-install `.mcp.json` is restored, otherwise only our entry is dropped). The
+    registration and the charter stay: the next install, or a charter load, connects
+    the directory again. The WebUI's remove is this followed by DELETE."""
     agent = registry.get(name_or_id)
     workdir = body.workdir or agent.workdir
     if not workdir:
@@ -269,4 +272,4 @@ def uninstall(
         result = install_core.uninstall_pi(workdir)
     else:
         result = install_core.uninstall(workdir)
-    return UninstallResponse(**result.__dict__)
+    return DisconnectResponse(**result.__dict__)

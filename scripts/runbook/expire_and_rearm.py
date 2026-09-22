@@ -44,6 +44,8 @@ def cleanup():
 
 
 hr("1. R1 RE-ARM  (delivered to a previous session, unanswered -> requeued on attach)")
+# a new line starts on auto-pass; this check needs the gate, so its own line is pinned
+admin.set_mode(admin.link(a_name, b_name).id, "supervised")
 msg = a.send(b_name, "are you there?")
 admin.decide(msg.id, "approve")
 (pulled,) = b.inbox()  # "session 1" reads it and dies without answering

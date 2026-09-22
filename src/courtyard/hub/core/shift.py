@@ -40,7 +40,7 @@ SETTINGS_KEY = "courtyard"  # the operator-changeable settings document
 SHIFT_KEY = "shift"  # the shift state document (survives hub restarts)
 
 # The launch command for a claude-code agent. Channels are a research preview and the
-# flag contract has drifted before (feedback item 11) — this is the 2.1.245-verified
+# flag contract has drifted before — this is the 2.1.245-verified
 # form; `make test-comms` proves it after any Claude Code auto-update.
 # `--settings` approves the project's courtyard MCP server for the launch: Claude Code
 # (2.1.269) ignores the approval it stores in `.claude/settings.local.json` unless git proves

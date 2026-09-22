@@ -199,6 +199,10 @@ def create_app(config: Config | None = None) -> FastAPI:
             shift_active=lambda: shift.status().state != "off",
             set_discovery=lambda v: shift.update_settings({"discovery": v}),
         )
+        # After an upgrade or a URL change the agents' directories get their files again,
+        # with nothing to press (teams.connect_on_start); a same-hub restart does nothing.
+        for line in app.state.teams.connect_on_start(f"http://{cfg.host}:{cfg.port}"):
+            logger.info("connect on start: %s", line)
 
         async def sweep_liveness() -> None:
             while True:

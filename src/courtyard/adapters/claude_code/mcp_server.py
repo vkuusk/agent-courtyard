@@ -256,7 +256,7 @@ class CourtyardAdapter:
         """Attach after the MCP handshake completes: the hub pushes the queued backlog
         during attach, and a notification sent before initialization would be dropped.
 
-        Retries forever, every 2s (feedback item 12): the operator's habit is agents
+        Retries forever, every 2s: the operator's habit is agents
         first, hub second — a session must not need relaunching just because it won the
         race. The original five-attempts-then-give-up left agents permanently offline."""
         self._receiver = ChannelReceiver(self._on_delivery)

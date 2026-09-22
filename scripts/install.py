@@ -32,6 +32,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from pathlib import Path
@@ -584,30 +585,67 @@ def install() -> None:
     say("make hub-status | hub-stop | hub-start | hub-restart | hub-open ; make uninstall")
 
 
-def registered_workdirs() -> list[str]:
+def _error_code(exc: urllib.error.HTTPError) -> str:
+    """The hub's error code out of an HTTP error body, or the status when there is none."""
     try:
-        with urllib.request.urlopen(hub_url() + "/api/agents", timeout=3) as resp:
+        return json.loads(exc.read())["error"]["code"]
+    except (ValueError, KeyError, TypeError, OSError):
+        return str(exc.code)
+
+
+def disconnect_agents() -> list[str] | None:
+    """Take the courtyard files out of every registered agent's directory, through the hub:
+    it holds the directories and does the file work (the same call as the WebUI's "take the
+    files out"). Registrations and the charter stay, so a later install plus a charter load
+    connects the directories again. One line per agent; None when the hub does not answer."""
+    url = hub_url()
+    try:
+        with urllib.request.urlopen(url + "/api/agents", timeout=3) as resp:
             agents = json.loads(resp.read())
     except (urllib.error.URLError, OSError, ValueError):
-        return []
-    return sorted(
-        f"{a['name']}: {a['workdir']}"
-        for a in agents
-        if a.get("workdir") and not a.get("removed_at") and a.get("type") != "human"
-    )
+        return None
+    lines = []
+    for a in sorted(agents, key=lambda a: a["name"]):
+        if (
+            a.get("removed_at")
+            or a.get("type") not in ("claude-code", "pi")
+            or not a.get("workdir")
+        ):
+            continue
+        name, workdir = a["name"], a["workdir"]
+        req = urllib.request.Request(
+            f"{url}/api/agents/{urllib.parse.quote(name)}/disconnect",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10):
+                lines.append(f"{name}: files taken out of {workdir}")
+        except urllib.error.HTTPError as exc:
+            code = _error_code(exc)
+            if code == "nothing_to_disconnect":
+                lines.append(f"{name}: nothing to take out of {workdir}")
+            else:
+                lines.append(f"{name}: NOT cleaned, {workdir} ({code})")
+        except (urllib.error.URLError, OSError) as exc:
+            lines.append(f"{name}: NOT cleaned, {workdir} ({exc})")
+    return lines
 
 
 def uninstall(purge: bool) -> None:
-    say("1. the agents' project directories (not touched; listed so you can clean them)")
-    workdirs = registered_workdirs()
-    for line in workdirs or ["  (hub not running or no agents registered)"]:
-        say("  " + line if not line.startswith("  ") else line)
-    if workdirs:
-        say("  each holds .mcp.json, .claude/settings.local.json and start-with-courtyard.sh;")
-        say(
-            "  remove them with: .venv/bin/courtyard-invite --name <agent> --remove"
-            " --keep-registration  (before step 2, while the hub answers)"
-        )
+    say("1. the agents' project directories: taking the courtyard files out")
+    outcome = disconnect_agents()
+    if outcome is None:
+        say("  the hub is not answering, so no directory was cleaned. Each agent's directory")
+        say("  holds .mcp.json, .claude/settings.local.json and start-with-courtyard.sh; to")
+        say("  clean them: make hub-start, then per agent")
+        say("  .venv/bin/courtyard-invite --name <agent> --disconnect")
+    elif not outcome:
+        say("  no registered agent has a project directory")
+    else:
+        for line in outcome:
+            say("  " + line)
     say("2. the LaunchAgents and the Courtyard Admin launcher")
     for label, plist in ((TRAY_LABEL, TRAY_PLIST), (LABEL, PLIST)):
         if loaded(label):

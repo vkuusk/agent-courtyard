@@ -332,7 +332,7 @@ operator-line invariants all apply unchanged.
 The load also writes the agents' launch config files. An agent the load
 registers (or revives) has a fresh token that no file in its project directory
 can know, so the hub writes that agent's files into its workdir in the same
-gesture: the set the Agents page's **write the files** writes, that is
+gesture: the set the Agents page's save writes (connect), that is
 `.mcp.json` with the token, the `.claude/settings.local.json` profile and
 `start-with-courtyard.sh` for claude-code, the extension, the skill and the
 script for pi, and nothing for a dummy. A team loaded from its charter on a

@@ -23,7 +23,7 @@ Neither `mcp.server.Server` nor FastMCP is used, deliberately:
   capability and the `notifications/claude/channel` event are Claude Code
   research-preview extensions; the SDKs model the official spec (tools,
   resources, typed unions) and stop helping exactly where our risk is. The
-  preview contract has drifted twice already (feedback item 11); one
+  preview contract has drifted twice already; one
   self-owned file is what we adjust when it drifts again.
 - The needed surface is five methods: initialize, tools/list, tools/call,
   ping, notifications. An SDK saves little code and adds a framework.

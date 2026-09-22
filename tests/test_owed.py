@@ -1,5 +1,5 @@
 """The owed-reply statement and the truthful send result (design
-communication-protocols.md sections 3.3 and 6.3; feedback item 45).
+communication-protocols.md sections 3.3 and 6.3).
 
 The hub cannot see where a request came from, so an answer's footer states what the hub
 does know: on which lines the recipient is still awaited."""

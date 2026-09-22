@@ -32,9 +32,10 @@ export const api = {
   createAgent: (payload) => call("POST", "/api/agents", payload),
   removeAgent: (name) => call("DELETE", `/api/agents/${encodeURIComponent(name)}`),
   patchAgent: (name, patch) => call("PATCH", `/api/agents/${encodeURIComponent(name)}`, patch),
-  uninstallAgent: (name) => call("POST", `/api/agents/${encodeURIComponent(name)}/uninstall`, {}),
-  installAgent: (name, workdir) =>
-    call("POST", `/api/agents/${encodeURIComponent(name)}/install`, { workdir }),
+  disconnectAgent: (name, workdir) =>
+    call("POST", `/api/agents/${encodeURIComponent(name)}/disconnect`, workdir ? { workdir } : {}),
+  connectAgent: (name, workdir) =>
+    call("POST", `/api/agents/${encodeURIComponent(name)}/connect`, { workdir }),
   agentToken: (name) => call("GET", `/api/agents/${encodeURIComponent(name)}/token`),
   verifyDelivery: (id) => call("POST", `/api/agents/${id}/verify-delivery`),
   rotateToken: (name) => call("POST", `/api/agents/${encodeURIComponent(name)}/token`),

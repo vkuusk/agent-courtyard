@@ -81,6 +81,8 @@ try:
     # D33: a current team is required before agents can register
     team_dir = tempfile.mkdtemp(prefix="runbook-team-")
     admin.set_current_team(admin.add_team(team_dir, "runbook").id)
+    # this hub is the script's own: start its lines supervised, the steps below use the gate
+    admin.patch_settings({"default_line_mode": "supervised"})
     _, alice_token = admin.register_agent("alice", "dummy")
     _, bob_token = admin.register_agent("bob", "dummy")
     admin.register_agent("carol", "dummy")

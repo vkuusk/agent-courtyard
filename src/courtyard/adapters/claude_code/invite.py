@@ -16,12 +16,13 @@ courtyard MCP server — the operator never hand-edits the file.
     courtyard-invite --team-dir ~/teams/devops --team-name devops \\
         --register --name coding --type claude-code --workdir ~/proj/payments
 
-    # undo it: the files come out of the directory AND the agent leaves the hub
-    # (the WebUI's remove does the same; the name can be registered again, D36):
-    courtyard-invite --name coding --remove
+    # unregister: the files come out of the directory AND the agent leaves the hub and
+    # the team charter (the WebUI's remove, unregister; the name can be registered again):
+    courtyard-invite --name coding --unregister
 
-    # detach the directory only, keep the agent registered:
-    courtyard-invite --name coding --remove --keep-registration
+    # disconnect: the files come out of the directory only, the agent stays registered
+    # (the WebUI's remove, disconnect; save or a charter load connects it again):
+    courtyard-invite --name coding --disconnect
 
 Dev-mode only: the hub writes the file, so it must share this machine's filesystem (the
 normal local setup). In live/container mode use the WebUI's copy-paste config instead.
@@ -57,17 +58,20 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--name", required=True, help="the agent's courtyard name")
     p.add_argument("--token", help="the agent's token (optional — the hub keeps it)")
     p.add_argument("--workdir", help="the agent's project dir (default: its registered workdir)")
-    p.add_argument(
-        "--remove",
+    undo = p.add_mutually_exclusive_group()
+    undo.add_argument(
+        "--unregister",
         action="store_true",
-        help="undo: take the files out of the workdir and remove the agent from the hub",
+        help="take the files out of the workdir and remove the agent from the hub and the charter",
+    )
+    undo.add_argument(
+        "--disconnect",
+        action="store_true",
+        help="take the files out of the workdir only; the agent stays registered",
     )
     p.add_argument(
-        "--keep-registration",
-        action="store_true",
-        help="with --remove: only take the files out; the agent stays registered",
+        "--register", action="store_true", help="register the agent first, then connect its workdir"
     )
-    p.add_argument("--register", action="store_true", help="register the agent first, then install")
     p.add_argument(
         "--type", default="claude-code", help="agent type when --register (default claude-code)"
     )
@@ -93,13 +97,13 @@ def cli(argv: list[str] | None = None) -> None:
     args = _parser().parse_args(argv)
     client = HubClient(args.hub)
     try:
-        if args.remove:
+        if args.unregister or args.disconnect:
             try:
-                result = client.uninstall(args.name, args.workdir)
+                result = client.disconnect(args.name, args.workdir)
             except HubError as exc:
-                # no files to take out (never installed, or already cleaned) is not a
-                # reason to keep the registration: same as the WebUI's remove (item 15)
-                if exc.code != "nothing_to_uninstall" or args.keep_registration:
+                # no files to take out (never connected, or already disconnected) is not
+                # a reason to keep the registration: same as the WebUI's unregister
+                if exc.code != "nothing_to_disconnect" or args.disconnect:
                     raise
                 print(f"courtyard-invite: nothing to take out of the directory ({exc})")
             else:
@@ -111,7 +115,7 @@ def cli(argv: list[str] | None = None) -> None:
                 print(f"courtyard-invite: {how} at {result['path']}")
                 if result.get("gitignore_cleaned"):
                     print("  took the courtyard lines out of .gitignore")
-            if args.keep_registration:
+            if args.disconnect:
                 print(f"  {args.name} stays registered on the hub")
             else:
                 client.remove_agent(args.name)
@@ -134,7 +138,7 @@ def cli(argv: list[str] | None = None) -> None:
             )
             print(f"registered {args.name}; token: {token}")
 
-        result = client.install(args.name, token, args.workdir)
+        result = client.connect(args.name, token, args.workdir)
         print(f"courtyard-invite: wrote {result['path']}")
         if result["backed_up"]:
             print(f"  (backed up the previous file to {result['backed_up']})")
