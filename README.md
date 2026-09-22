@@ -199,8 +199,8 @@ blocks an answer.
 ### Start the hub
 
 ```sh
-git clone https://github.com/vkuusk/cbx-agent-courtyard.git
-cd cbx-agent-courtyard
+git clone https://github.com/vkuusk/agent-courtyard.git
+cd agent-courtyard
 cp .env.default .env   # local settings; the defaults work unless a port is taken
 uv sync             # the venv, everything included
 make run            # postgres + the hub, in the foreground
