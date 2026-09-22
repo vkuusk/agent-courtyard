@@ -54,7 +54,7 @@ Prerequisites:
 From an empty directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
 ```
 
 The script names any missing prerequisite with the command that installs it, downloads the
