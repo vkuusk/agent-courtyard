@@ -144,7 +144,7 @@ app (starts at login, a menu bar icon for the buttons called Courtyard Admin, a 
 icon if you want one):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
 ```
 
 The script names any missing prerequisite with the command that installs it, then
