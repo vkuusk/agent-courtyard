@@ -1,6 +1,6 @@
 ---
 name: courtyard-testing
-description: Testing workflow for the cbx-agent-courtyard repository. How to run the existing checks (pytest suite, lint, runbook scripts, live round-trip, WebUI checks) and which tests a change must add. Use when verifying or testing a change, adding tests for new code, writing a testing entry in docs/testing.md, or when a check needs a safe throwaway hub.
+description: Testing workflow for the agent-courtyard repository. How to run the existing checks (pytest suite, lint, runbook scripts, live round-trip, WebUI checks) and which tests a change must add. Use when verifying or testing a change, adding tests for new code, writing a testing entry in docs/testing.md, or when a check needs a safe throwaway hub.
 compatibility: Requires uv and Docker with compose. Live-session checks additionally need Claude Code on PATH (macOS).
 ---
 

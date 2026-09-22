@@ -1,7 +1,7 @@
 # Instructions for AI agents
 
 This file is for an AI agent working in this repository: setting courtyard up
-for its operator, or contributing to the code. The [README](obsolete-README.md) explains
+for its operator, or contributing to the code. The [README](README.md) explains
 what the project is and why; this file is the executable part.
 
 ## What you are setting up

@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/vkuusk/cbx-agent-courtyard"
+Repository = "https://github.com/vkuusk/agent-courtyard"
 
 [project.scripts]
 courtyard-hub = "courtyard.hub.main:cli"

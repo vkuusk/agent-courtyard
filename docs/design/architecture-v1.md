@@ -1243,7 +1243,7 @@ the Python source; the pi extension (TypeScript) ships inside the package as the
 install renders into an agent's workdir.
 
 ```
-cbx-agent-courtyard/
+agent-courtyard/
 ├── README.md
 ├── Makefile                        # make run / test / demo / lint
 ├── pyproject.toml                  # one project; entry points:

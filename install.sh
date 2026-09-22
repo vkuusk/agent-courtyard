@@ -1,7 +1,7 @@
 #!/bin/sh
 # Agent Courtyard: the one-command install for macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
 #
 # What it does, in order, and nothing else: checks the prerequisites (macOS, Docker
 # running, Python 3.14), downloads the newest release zip from GitHub, unpacks it into the
@@ -27,7 +27,7 @@
 #   curl -fsSL .../install.sh | COURTYARD_COMPOSE_PROJECT=courtyard-2 COURTYARD_PG_PORT=26433 COURTYARD_PORT=2627 sh
 set -eu
 
-REPO="vkuusk/cbx-agent-courtyard"
+REPO="vkuusk/agent-courtyard"
 say() { printf '%s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 

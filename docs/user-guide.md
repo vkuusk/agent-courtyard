@@ -17,7 +17,7 @@ The short way, for using the hub day to day (details under "Installing as an app
 
 ```sh
 mkdir -p ~/Applications/courtyard && cd ~/Applications/courtyard
-curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
 ```
 
 The script checks the prerequisites (macOS, Docker running, Python 3.14) and names what
@@ -37,7 +37,7 @@ every request answers 503 until it is restarted), but the fix is the `.env`. A s
 isolated instance beside the machine's usual one is therefore one line:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh \
+curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh \
     | COURTYARD_COMPOSE_PROJECT=courtyard-2 COURTYARD_PG_PORT=26433 COURTYARD_PORT=2627 sh
 ```
 
@@ -55,8 +55,8 @@ agent runtime itself: [Claude Code](https://docs.anthropic.com/en/docs/claude-co
 (`npm i -g @earendil-works/pi-coding-agent`).
 
 ```sh
-git clone https://github.com/vkuusk/cbx-agent-courtyard.git
-cd cbx-agent-courtyard
+git clone https://github.com/vkuusk/agent-courtyard.git
+cd agent-courtyard
 cp .env.default .env
 uv sync
 make run
@@ -156,7 +156,7 @@ The compose project is named `courtyard`, so the data volume is
 `courtyard_courtyard-pgdata` whatever the directory is called. A clone that ran before
 this name existed left two things behind: a container called `courtyard-postgres` under
 the old project, which the new one cannot start beside (same name), and a volume
-`cbx-agent-courtyard_courtyard-pgdata` holding a postgres 17 cluster. The data does not
+`agent-courtyard_courtyard-pgdata` holding a postgres 17 cluster. The data does not
 carry over by copying: the image is postgres 18 now and keeps its cluster in a different
 place inside the volume, so a copied volume is ignored and an empty database starts.
 Either register the agents again (each project directory keeps its config; write the

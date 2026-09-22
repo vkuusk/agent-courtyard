@@ -13,7 +13,7 @@ Requirements: [uv](https://docs.astral.sh/uv/), Docker with compose, and
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude` on your PATH).
 
 If you only want to use the hub, not work on it, there is a shorter path: from an empty
-directory, `curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh`
+directory, `curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh`
 installs it as a macOS app that starts at login, with a menu bar icon for the buttons,
 Courtyard Admin (the user guide's "Installing as an app"). It ends with a summary of its
 steps; read any warning there, it tells you when an earlier install's database was found
@@ -22,8 +22,8 @@ The rest of this walkthrough uses the development setup below; the WebUI and eve
 after it are the same either way.
 
 ```sh
-git clone https://github.com/vkuusk/cbx-agent-courtyard.git
-cd cbx-agent-courtyard
+git clone https://github.com/vkuusk/agent-courtyard.git
+cd agent-courtyard
 cp .env.default .env   # local settings; see the port-collision note below
 uv sync            # creates .venv with everything, including the agent adapter
 make run           # postgres up + the hub on http://127.0.0.1:2626 (leave this terminal up)
