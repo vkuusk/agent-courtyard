@@ -19,8 +19,8 @@ additionally need the pi coding agent installed
 (`npm i -g @earendil-works/pi-coding-agent`).
 
 ```sh
-git clone https://github.com/vkuusk/cbx-agent-courtyard.git
-cd cbx-agent-courtyard
+git clone https://github.com/vkuusk/agent-courtyard.git
+cd agent-courtyard
 cp .env.default .env   # local settings; the compose postgres listens on 26432 (COURTYARD_PG_PORT)
 uv sync
 make run            # postgres + the hub on http://127.0.0.1:2626 (foreground)
@@ -33,7 +33,7 @@ make run            # postgres + the hub on http://127.0.0.1:2626 (foreground)
 Verify: `curl -sf http://127.0.0.1:2626/api/health` returns success.
 
 For day-to-day use instead of `make run`: `make install` (or, from an empty directory,
-`curl -fsSL https://raw.githubusercontent.com/vkuusk/cbx-agent-courtyard/main/install.sh | sh`,
+`curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh`,
 which downloads the newest release and runs it) registers the hub as a macOS
 LaunchAgent (starts at login, restarts on exit) plus a second one for Courtyard Admin,
 the icon in the menu bar (two files under `~/Library/LaunchAgents`, `com.courtyard.hub`
