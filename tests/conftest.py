@@ -15,11 +15,17 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
+from courtyard.common.envfile import load_env_file
 from courtyard.hub.config import load_config
 from courtyard.hub.main import create_app
 from courtyard.hub.storage.migrate import apply_migrations
 
 TEST_DB = "courtyard_test"
+
+# `make test` exports .env; a bare `uv run pytest` gets nothing and would look for the
+# compose postgres on the default port, which on a machine with an installed hub is
+# somebody else's.
+load_env_file()
 
 
 def auth(token: str) -> dict[str, str]:

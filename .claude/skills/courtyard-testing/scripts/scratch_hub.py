@@ -13,6 +13,9 @@ Usage (from the repo root):
     uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py stop --name mycheck
     uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py list
 
+No environment variables need setting: the checkout's .env (compose project,
+postgres port) is read the way `make` reads it.
+
 `start` brings the compose postgres up if needed, creates a scratch database
 (courtyard_scratch_<name>), starts a hub on a free port, and prints the URL.
 State (pid, log, port) lives in sandbox/scratch-<name>/. `stop` kills the
@@ -33,6 +36,8 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+
+from courtyard.common.envfile import load_env_file
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SANDBOX = REPO_ROOT / "sandbox"
@@ -206,6 +211,7 @@ def main() -> None:
         " pre-team state itself need this)",
     )
     args = parser.parse_args()
+    load_env_file(REPO_ROOT)
     if args.action == "list":
         list_hubs()
         return

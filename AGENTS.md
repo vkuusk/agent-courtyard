@@ -93,9 +93,9 @@ may be committed. Undo with `courtyard-invite --name <agent-name> --unregister`:
 files come out and the agent leaves the hub and the charter (`--disconnect` instead takes
 the files out and keeps the agent registered).
 
-Verify the whole message path without any real agents: `make demo` runs two
-scripted dummy agents through the hub, including a supervised gate;
-`make demo-stop` removes the dummies and everything they produced.
+Verify the whole message path without any real agents: the procedures in
+[docs/testing.md](docs/testing.md) drive scripted dummy agents through the hub,
+including a supervised gate, and clean up after themselves.
 
 ## Decisions that belong to your operator
 
@@ -142,7 +142,7 @@ the full walkthrough with every screen described, and at
   [.claude/skills/courtyard-testing/SKILL.md](.claude/skills/courtyard-testing/SKILL.md)
   before testing or adding tests. Claude Code loads it by itself.
 - Every completed feature ships a manual verification procedure in
-  `docs/testing.md` plus a durable script in `scripts/runbook/`;
+  `docs/testing.md` plus a durable script in `scripts/verify/<area>/`;
   conventions live in `docs/development.md`.
 - The design document (`docs/design/architecture-v1.md`) records
   every decision with its reasons in a decision log; read the relevant entries

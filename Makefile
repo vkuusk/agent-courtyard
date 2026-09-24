@@ -1,4 +1,4 @@
-.PHONY: run run-chrome run-stop check test test-comms lint fmt demo demo-chrome demo-stop db-up db-ui db-down db-nuke install uninstall hub-start hub-stop hub-restart hub-status hub-open tray zip-package
+.PHONY: run run-chrome run-stop check test test-comms lint fmt db-up db-ui db-down db-nuke install uninstall hub-start hub-stop hub-restart hub-status hub-open tray zip-package
 
 # local overrides (copied from .env.default; gitignored); exported so the hub,
 # tests and compose all see the same values
@@ -29,15 +29,6 @@ run-stop:       ## stop the hub that run-chrome started in the background
 	else \
 		rm -f sandbox/courtyard.pid; echo "no background hub to stop (a hub started with 'make run' stops with Ctrl+C)"; \
 	fi
-
-demo: db-up     ## step-2 demo: two scripted dummies + manual play instructions
-	uv run python scripts/demo.py
-
-demo-chrome: db-up  ## the demo, with the board opening in its own Chrome window
-	COURTYARD_CHROME="$(CHROME)" uv run python scripts/demo.py --chrome
-
-demo-stop:      ## stop the hub and dummies the demo started
-	uv run python scripts/demo.py --stop
 
 check: test lint  ## the automated "done" bar: full test suite + lint
 

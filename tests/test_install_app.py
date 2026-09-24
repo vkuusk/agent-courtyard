@@ -1,5 +1,5 @@
 """`make install`: the hub as a macOS LaunchAgent (scripts/install.py). The install itself
-touches the operator's machine, so it stays a manual runbook check; what is tested here
+touches the operator's machine, so it stays a manual verification procedure; what is tested here
 is the rendered LaunchAgent and the wrapper's contract, which is where LaunchAgents break."""
 
 from __future__ import annotations

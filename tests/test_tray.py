@@ -1,6 +1,6 @@
 """The menu bar app's logic (`courtyard.traycore`): the buttons behind `make hub-*`, the
 state line and glyph, the shift calls. The menu bar itself (rumps) is not driven here; the
-runbook does that by hand."""
+verification procedure does that by hand."""
 
 from __future__ import annotations
 

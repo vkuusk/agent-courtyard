@@ -8,7 +8,7 @@ One interface, three implementations, a `none` default:
   explicit `COURTYARD_EMBEDDINGS_ALLOW_REMOTE=1`, because it sends message bodies off the
   machine and the README promises nothing does by default.
 * `FakeEncoder` (`fake://`): a deterministic bag-of-words vector with a small synonym
-  table, for the tests and for runbook scripts that must not depend on a model server.
+  table, for the tests and for verification scripts that must not depend on a model server.
   It is honest about what it is: it proves the plumbing, not semantics.
 
 The hub stays light: no torch, no model inside the process. The encoder's `model` name

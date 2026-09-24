@@ -19,7 +19,6 @@ make run               # postgres + the hub on http://127.0.0.1:2626, in the for
 | `make check` | the test suite and lint; brings postgres up itself |
 | `make fmt` | fixes formatting |
 | `make test-comms` | a round trip through a live Claude Code session; needs `claude` on PATH |
-| `make demo`, `make demo-stop` | two scripted dummy agents talking through the hub; stop removes them and what they produced |
 | `make db-nuke` | stops the containers and deletes the database volume |
 | `make zip-package` | the install zip of the committed tree |
 
@@ -60,7 +59,7 @@ Three layers:
 - **Functional tests**: `tests/test_*.py`, run by `make check`, against a dedicated
   `courtyard_test` database. Development data is never touched.
 - **End to end**: `tests/communications/`, run by `make test-comms` on demand.
-- **Manual verification**: a script in `scripts/runbook/` plus its entry in
+- **Manual verification**: a script in `scripts/verify/<area>/` plus its entry in
   [`testing.md`](testing.md). Automated tests assert; these scripts show.
 
 ### Every feature ships a manual test procedure
@@ -80,7 +79,8 @@ It is part of done, together with a green `make check`. The entry in `testing.md
 
 The script behind `Run:`:
 
-- One file per procedure, in `scripts/runbook/`. `make check` lints it.
+- One file per procedure, in `scripts/verify/<area>/`, the area being the section of
+  `testing.md` the entry sits in. `make check` lints it.
 - Self-contained and self-cleaning: throwaway agents with unique names, removed at the
   end, no dependence on earlier runs, exit 0 on success.
 - Prints its checkpoints, so the operator reads the real output: the envelope text, the

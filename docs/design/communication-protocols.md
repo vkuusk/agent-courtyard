@@ -129,7 +129,7 @@ heartbeats, and forwards the model's delivery-check acknowledgement.
 |---|---|---|---|
 | Claude Code | the courtyard MCP server (stdio, `.mcp.json` in the workdir) | channel events; the session must be launched with the channel flag (`start-with-courtyard.sh` carries it) | a SessionStart hook in `.claude/settings.local.json` (D40) |
 | pi | the courtyard extension (`.pi/extensions/courtyard.ts`) | custom messages added to the session, shown as courtyard cards | the extension, at session start and again after compaction (D40) |
-| dummy | a Python process (tests, `make demo`) | the same HTTP push | not applicable |
+| dummy | a Python process (tests, verification procedures) | the same HTTP push | not applicable |
 
 The tools carry the same names in every adapter: `courtyard_send`, `courtyard_peers`,
 `courtyard_inbox`, `courtyard_recall`, `courtyard_note`, `courtyard_close_thread` and

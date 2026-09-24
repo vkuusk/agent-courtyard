@@ -879,20 +879,25 @@ def test_connect_on_start_rewrites_the_files_once_per_hub_version(client, tmp_pa
     client.post("/api/agents", json={"name": "nodir", "type": "claude-code"})
     client.post("/api/agents", json={"name": "bot", "type": "dummy", "workdir": str(tmp_path)})
 
-    # the app start already recorded this hub, so the same stamp does nothing
-    assert teams.connect_on_start("http://127.0.0.1:2626") == []
+    # the app start already recorded this hub, whatever port it serves on, so the same
+    # stamp does nothing
+    with storage.transaction() as uow:
+        started_url = uow.settings.get(CONNECTED_KEY).split("@", 1)[1]
+    assert teams.connect_on_start(started_url) == []
     assert not (workdir / ".mcp.json").exists()
 
     # another URL (or, at an upgrade, another version) rewrites every directory
-    lines = teams.connect_on_start("http://127.0.0.1:2627")
+    host, _, port = started_url.rpartition(":")
+    other_url = f"{host}:{int(port) + 1}"
+    lines = teams.connect_on_start(other_url)
     assert len(lines) == 1 and lines[0].startswith("scout: courtyard files written into")
     mcp = json.loads((workdir / ".mcp.json").read_text())
-    assert mcp["mcpServers"]["courtyard"]["env"]["COURTYARD_HUB_URL"] == "http://127.0.0.1:2627"
+    assert mcp["mcpServers"]["courtyard"]["env"]["COURTYARD_HUB_URL"] == other_url
     assert (workdir / "start-with-courtyard.sh").exists()
     with storage.transaction() as uow:
-        assert uow.settings.get(CONNECTED_KEY) == f"{hub_version()}@http://127.0.0.1:2627"
+        assert uow.settings.get(CONNECTED_KEY) == f"{hub_version()}@{other_url}"
 
     # and once recorded, the next start with that URL is quiet again
     (workdir / ".mcp.json").unlink()
-    assert teams.connect_on_start("http://127.0.0.1:2627") == []
+    assert teams.connect_on_start(other_url) == []
     assert not (workdir / ".mcp.json").exists()

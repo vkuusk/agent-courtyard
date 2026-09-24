@@ -17,7 +17,7 @@ Adding a terminal application the shift should fully drive (open AND close):
   2. register it in `BUILTIN_SPAWNERS`, and its name in `models.BUILTIN_TERMINALS` (the
      test suite refuses the two lists drifting apart); the WebUI reads the names from
      the hub
-  3. run `scripts/runbook/terminal_spawners.py <name>` against the real app — the
+  3. run `scripts/verify/shift/terminal_spawners.py <name>` against the real app — the
      AppleScript is the part no unit test can see
 """
 
@@ -311,7 +311,7 @@ class ITerm2(OsascriptTerminal):
     name = "iTerm2"
     # iTerm2 ships as `iTerm.app` while calling itself iTerm2, and AppleScript resolves the
     # app by that filename: `tell application "iTerm2"` raises "Can't get application" and
-    # the script then fails to even compile (found by the spawner runbook, 2026-09-08, on
+    # the script then fails to even compile (found by the spawner procedure, 2026-09-08, on
     # iTerm2 3.6.6 — the whole iTerm2 spawner was dead). The bundle id is unambiguous.
     app = 'application id "com.googlecode.iterm2"'
 
