@@ -6,13 +6,27 @@
 |---|---|---|
 | Functional tests | `tests/test_*.py`, real postgres, real app, a dedicated `courtyard_test` database | `make check` |
 | End to end | a round trip through a live Claude Code session | `make test-comms` |
-| Manual procedures | a script in `scripts/runbook/` that prints what the operator would see, plus steps done by hand on the WebUI | this document |
+| Manual procedures | a script in `scripts/verify/<area>/` that prints what the operator would see, plus steps done by hand on the WebUI | this document |
 
 Automated tests assert. The procedures show: the operator reads the real envelope, the
 real refusal, the real listing. The standard for writing a procedure is in
 [development.md](development.md).
 
 ## Running a procedure
+
+The sections below are the areas this document is organised in. Each has its own
+directory of scripts, `scripts/verify/<area>/`, and is independent of the others: give a
+section a throwaway hub when it starts, stop it when the section ends, and nothing
+carries over. A section that fails tells you nothing about the next one.
+
+Every entry opens with what it needs:
+
+| Needs | Means |
+|---|---|
+| the script | a command, and nothing else |
+| a browser | steps done by hand on the WebUI |
+| a live session | a real Claude Code or pi session: it spends model tokens and opens a window |
+| this machine | it changes this machine's own installation, its login items or its live hub |
 
 Every script registers throwaway agents with unique names, prints numbered checkpoints,
 removes what it made and exits 0.
@@ -38,12 +52,14 @@ on a throwaway hub too: agent names are permanent on a hub.
 
 ### The envelope and peer discovery
 
+*Needs: the script; the manual step needs a live session.*
+
 The hub renders the envelope an agent receives; the WebUI reads the raw body;
 `courtyard_peers` is ranked and worded by the hub; a body cannot forge an envelope.
 Design: architecture §7.5.
 
 ```sh
-uv run python scripts/runbook/envelope_and_peers.py
+uv run python scripts/verify/messages/envelope_and_peers.py
 ```
 
 Expected, four blocks:
@@ -62,12 +78,14 @@ arrives on the WebUI, not only in the agent's terminal.
 
 ### Tool results worded by the hub
 
+*Needs: the script; the manual steps need live sessions.*
+
 What a courtyard tool returns to a model is written by the hub and forwarded by the
 adapter. A refusal reads "The courtyard hub refused: [code] message" in both adapters.
 Design: communication-protocols sections 3.3 and 8.
 
 ```sh
-uv run python scripts/runbook/tool_results.py
+uv run python scripts/verify/messages/tool_results.py
 ```
 
 Expected, six blocks: held at the gate; accepted for a recipient that is not connected; a
@@ -84,13 +102,15 @@ Manual:
 
 ### Adapters fetch their texts from the hub
 
+*Needs: the script; the manual steps need a live pi and Claude Code session.*
+
 At session start an adapter asks the hub for its tool definitions, instructions and own
 texts (`GET /api/agents/{name}/texts`) and falls back to its packaged copy. The pi skill
 is a file on disk and changes when the agent is saved (edit, save) or at the hub's
 start after an upgrade. Design: communication-protocols section 8.
 
 ```sh
-uv run python scripts/runbook/adapter_texts.py
+uv run python scripts/verify/messages/adapter_texts.py
 ```
 
 Expected, four blocks: the Claude Code bundle; the pi bundle, without instructions; the
@@ -107,13 +127,15 @@ Manual:
 
 ### An answer says where its result belongs
 
+*Needs: the script; a browser for the Admin envelope step, live sessions for the rest.*
+
 The hub cannot see a terminal. It knows on which lines an agent is still awaited, and the
 footer of every delivered answer ends with that: whom the recipient still owes a reply on
 the board, or that nobody is waiting, so a request typed in its terminal is answered
 there. Design: communication-protocols sections 3.3 and 6.3.
 
 ```sh
-uv run python scripts/runbook/owed_reply.py
+uv run python scripts/verify/messages/owed_reply.py
 ```
 
 Expected, three blocks: the footer when the request was typed in the terminal (nobody on
@@ -136,6 +158,8 @@ Manual:
 
 ### Message transfer control
 
+*Needs: the script on a throwaway hub; a browser for the Brake step, live sessions for the rest.*
+
 A new agent line starts on auto-pass. An agent's own message to the operator awaits no
 reply and its thread ends at once. A release ends the open thread as `locked` and tells
 both agents. `serves` names the participant whose open thread an ask serves. The brake
@@ -146,7 +170,7 @@ Its hub must be a throwaway one: the script flips the brake.
 
 ```sh
 uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py start --name flow
-COURTYARD_HUB_URL=<printed url> uv run python scripts/runbook/flow_control.py
+COURTYARD_HUB_URL=<printed url> uv run python scripts/verify/messages/flow_control.py
 uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py stop --name flow
 ```
 
@@ -168,6 +192,8 @@ Manual:
    shift-end notice first.
 
 ### The round trip through a live Claude Code session
+
+*Needs: a live Claude Code session and model access.*
 
 The whole delivery path with a real session: install, attach, channel push into a live
 turn, the `courtyard_send` reply. Run it first when messages stop arriving, and after any
@@ -191,12 +217,14 @@ reason), and the last lines of the agent's terminal.
 
 ### The channel flag and the delivery check
 
+*Needs: the script, which starts its own hub; the manual steps need live sessions.*
+
 Two ways to find a session that cannot hear the hub. The adapter reports whether its
 session was launched with the channel flag. The delivery check pushes a token the model
 must return with `courtyard_ack`. Design: architecture §6.3, D29, D30.
 
 ```sh
-uv run python scripts/runbook/delivery_check.py      # own hub
+uv run python scripts/verify/messages/delivery_check.py      # own hub
 ```
 
 Expected, four blocks: the flag report on attach; the check envelope and the ack; the
@@ -226,6 +254,8 @@ A check never appears in a line's history or in an archive.
 
 ### The files registration writes
 
+*Needs: the script; a browser for steps 3 and 4, live sessions for the rest.*
+
 For a claude-code agent the hub writes `.mcp.json` (merged with an existing one, a backup
 kept, the token inline, mode 600), `.claude/settings.local.json` (the courtyard allow
 rule, the declared model, a status line, the session-start hook) and
@@ -233,7 +263,7 @@ rule, the declared model, a status line, the session-start hook) and
 architecture D8, D21, D39, D40.
 
 ```sh
-uv run python scripts/runbook/install_mcp_json.py
+uv run python scripts/verify/agents/install_mcp_json.py
 ```
 
 Expected, three blocks:
@@ -271,11 +301,13 @@ Manual:
 
 ### Stored tokens
 
+*Needs: the script and a browser.*
+
 The hub keeps each agent's token: it can be read again, install needs none passed in, and
 rotation revokes the old one at once. Design: architecture D19.
 
 ```sh
-uv run python scripts/runbook/token_rotation.py
+uv run python scripts/verify/agents/token_rotation.py
 ```
 
 Expected, four blocks: `same as at registration? True`; `equals the stored one? True`;
@@ -289,12 +321,14 @@ launch config shows the new token, and the agent's dot stays grey until it is re
 
 ### The Agents page and the Defaults setting
 
+*Needs: the script and a browser.*
+
 The add form, the edit view over `PATCH /api/agents/{id}` whose save also connects the
 directory, unregister (disconnect first, then delete), and `New lines start` under
 Admin, Defaults.
 
 ```sh
-uv run python scripts/runbook/agents_edit.py
+uv run python scripts/verify/agents/agents_edit.py
 ```
 
 Expected, three blocks: the edit, `null clears`, and two refusals (the name, the
@@ -324,12 +358,14 @@ Manual:
 
 ### A removed name is registered again
 
+*Needs: the script and a browser.*
+
 Registering a removed agent's name revives its row: same id, new token, status `invited`.
 The old token stays dead, the archives still name the agent, no line comes back, and a
 live name is still refused. Design: architecture §5.1, D36.
 
 ```sh
-uv run python scripts/runbook/name_reuse.py
+uv run python scripts/verify/agents/name_reuse.py
 ```
 
 Expected, four blocks: `status : gone, removed_at set: True`; `same id : True` with a
@@ -340,6 +376,8 @@ Manual: remove an agent, add one with the same name. It appears with the new fie
 card is back in the charter directory, its launch config shows a new token.
 
 ### The pi adapter
+
+*Needs: the tests; the manual steps need pi installed and a live session.*
 
 One extension file, `.pi/extensions/courtyard.ts`, written by install and speaking the
 same hub contract as the Claude Code adapter. Design: architecture §7.3, D32.
@@ -371,11 +409,13 @@ Manual, with pi installed (`npm i -g @earendil-works/pi-coding-agent`):
 
 ### The archive
 
+*Needs: the script and a browser.*
+
 A line's history becomes one immutable document: on request (the line continues empty and
 idle) and by itself when an agent is removed. Design: architecture §5.7, D20.
 
 ```sh
-uv run python scripts/runbook/archive_line.py
+uv run python scripts/verify/lines/archive_line.py
 ```
 
 Expected, three blocks: `reason : operator   messages: 3` and `line state : idle`; the
@@ -389,13 +429,15 @@ after a confirm. Removing an agent moves its lines from the Courtyard page to th
 
 ### Discovery: auto and manual
 
+*Needs: the script, which starts its own hub, and a browser with two or three agents.*
+
 Under `auto` every agent sees every other and a line forms on the first message. Under
 `manual` agents see and reach only whom the operator linked; a link is an idle line.
 Unlink archives the history and removes the line. The operator is exempt. Design:
 architecture §5.8, D22.
 
 ```sh
-uv run python scripts/runbook/discovery_links.py     # own hub
+uv run python scripts/verify/lines/discovery_links.py     # own hub
 ```
 
 Expected, six blocks: a line forms under auto; `not_linked` under manual while the
@@ -422,11 +464,13 @@ Manual, with two or three agents:
 
 ### Start and end
 
+*Needs: the script; the manual steps open real terminal windows.*
+
 The shift state machine, the Team mode and terminal settings, and the real terminal
 windows. Design: architecture §8.1, D23, D28.
 
 ```sh
-uv run python scripts/runbook/shift_and_settings.py
+uv run python scripts/verify/shift/shift_and_settings.py
 ```
 
 Expected, two blocks: the settings round trip, `always_on` refused, a custom terminal
@@ -450,12 +494,14 @@ Nothing the shift did not open is ever closed, and a running agent is never star
 
 ### End shift closes the books
 
+*Needs: the script; the manual steps need a live session.*
+
 Ending the shift releases every busy line and marks unfinished messages `expired`; nothing
 is deleted. A message delivered to an earlier session and never answered is delivered
 again at the agent's next attach. Design: architecture §8.1, §6.4, D24.
 
 ```sh
-uv run python scripts/runbook/expire_and_rearm.py
+uv run python scripts/verify/shift/expire_and_rearm.py
 ```
 
 Expected, two blocks: the redelivery on attach; the expiry. The second block skips itself
@@ -475,11 +521,13 @@ Manual:
 
 ### The stale shift
 
+*Needs: the script, which starts its own hub; the manual steps open real terminal windows.*
+
 A shift left open, by closing the terminals by hand or by a reboot, is detected, and the
 Courtyard page asks what to do. Design: architecture §8.1, D25, D26.
 
 ```sh
-uv run python scripts/runbook/stale_shift.py         # own hub
+uv run python scripts/verify/shift/stale_shift.py         # own hub
 ```
 
 Expected, four blocks: the agent reads `unknown` with `checking_until` set and stale
@@ -503,6 +551,8 @@ Manual, which opens real windows:
 
 ### Terminal applications
 
+*Needs: the script, which opens a real window, and a browser.*
+
 Terminal, iTerm2 and Ghostty are driven the same way: spawn opens a window and records
 its id and tty; alive sees the process on that tty; close ends the process, then the
 window, with no dialog and no orphan. Design: architecture §8.1, D35.
@@ -510,7 +560,7 @@ window, with no dialog and no orphan. Design: architecture §8.1, D35.
 No hub needed. It opens a real window.
 
 ```sh
-uv run python scripts/runbook/terminal_spawners.py Ghostty     # or Terminal, iTerm2
+uv run python scripts/verify/shift/terminal_spawners.py Ghostty     # or Terminal, iTerm2
 ```
 
 Expected: a window appears at step 1 and is gone after step 3. `tty : /dev/ttysNNN`,
@@ -525,13 +575,15 @@ shift: one Ghostty window per agent. End shift closes exactly those.
 
 ### Open, continue, close, expire
 
+*Needs: the script; the manual steps need a live agent.*
+
 Every message belongs to a thread, one bounded exchange about one ask, at most one open
 per line. A declared new ask while one is open is refused. Close is a tool call by the
 initiator only; the peer reads "thread closed by X". End shift marks open threads
 `expired`. Design: threads.md, D34.
 
 ```sh
-uv run python scripts/runbook/threads.py
+uv run python scripts/verify/threads/threads.py
 ```
 
 Expected, four blocks: the same thread id on ask and answer; the `thread_open` refusal;
@@ -550,6 +602,8 @@ Manual, with a live agent:
 
 ### Thread budgets
 
+*Needs: the script, which starts its own hub, and a browser.*
+
 An agent-to-agent thread carries a budget of messages, `thread_budget`, 12 by default, 0
 for none. A reply always passes. A fresh ask on a spent thread locks it, tells both
 agents, and is refused with `thread_locked`; the next ask opens a new thread. Returned and
@@ -557,7 +611,7 @@ dropped messages do not count. Threads with the operator are never locked. Desig
 threads.md section 5.
 
 ```sh
-uv run python scripts/runbook/thread_budget.py       # own hub
+uv run python scripts/verify/threads/thread_budget.py       # own hub
 ```
 
 Expected, seven blocks: the setting; the lock and both refusal texts; a fresh thread
@@ -571,11 +625,14 @@ refusal.
 
 ### Threads on the WebUI
 
+*Needs: a browser, on a hub filled by seed_board.py.*
+
 The pane groups messages by thread, with a chip at each thread's first message naming its
 number, opener and state. The line's row counts them: "supervised · 3 threads, 1 open ·
 2m ago". The header of your own line shows **close thread** when the open thread is yours.
 
-Manual, on `make demo` or any hub where two agents have talked:
+Manual, on a board filled by `scripts/verify/webui/seed_board.py` or any hub where two
+agents have talked:
 
 1. A line whose pair has talked reads "N threads", with ", 1 open" while an ask is open.
 2. Select it: chips split the conversation by ask, and "thread closed by X" sits at each
@@ -589,7 +646,7 @@ Manual, on `make demo` or any hub where two agents have talked:
 All five entries use one script with its own hub:
 
 ```sh
-uv run python scripts/runbook/team_charter.py        # own hub
+uv run python scripts/verify/charter/team_charter.py        # own hub
 ```
 
 Do the manual parts on a throwaway hub with a copy of a charter directory. Selecting a
@@ -597,6 +654,8 @@ team registers its agents under permanent names, and the forms write into the di
 Design: team-charter.md, D33.
 
 ### A current team is required
+
+*Needs: the script and a browser.*
 
 Registration without a current team is refused with `no_team`. The empty Courtyard page
 asks for the team's directory. The selection can move but never clear, and the current
@@ -616,6 +675,8 @@ Manual, on a fresh hub:
 
 ### Registering, reloading, selecting
 
+*Needs: the script and a browser.*
+
 The hub loads what the files say, reloads only when told, and reports a broken charter
 instead of failing. Script checkpoints 1 to 5.
 
@@ -632,6 +693,8 @@ Manual:
 5. Remove a team that is not current: the row goes, the files stay.
 
 ### Projection: cards become the team
+
+*Needs: the script and a browser.*
 
 Selecting a team, or reloading the current one, turns cards into registrations and
 declared links into lines with their modes. It only adds. Script checkpoints 6 to 8
@@ -655,6 +718,8 @@ Manual:
 
 ### Write-back: the forms write the files
 
+*Needs: the script and a browser.*
+
 While a team is current, adding, editing and removing an agent through the hub also
 changes the charter files. Agents outside the charter stay in the database only. Script
 checkpoint 9.
@@ -673,6 +738,8 @@ Manual:
    nothing registered.
 
 ### A load writes the agents' files
+
+*Needs: the script and a browser; its last steps open real terminal windows.*
 
 A load that registers an agent writes that agent's courtyard files into its directory.
 Agents already registered are never rewritten by a reload. Script checkpoints 6 to 8.
@@ -695,13 +762,15 @@ Manual, on a fresh hub:
 
 ### The case file and recall
 
+*Needs: the script and a browser.*
+
 A thread that closes becomes one case file: participants with their domains, the ask, the
 resolution, every verdict with its comment, the counts, the messages. Expired and locked
 threads leave nothing. `courtyard_recall` returns trimmed records, best match first; the
 handle fetches the full case file. Design: hub-memory.md.
 
 ```sh
-uv run python scripts/runbook/memory_recall.py
+uv run python scripts/verify/memory/memory_recall.py
 ```
 
 Expected, four blocks: `case files written by the close: 1` with the approved answer as
@@ -722,13 +791,15 @@ Manual:
 
 ### Notes
 
+*Needs: the script; a browser for the operator's steps, a live agent for the first.*
+
 `courtyard_note` deposits a lesson. It is not a message: nobody is addressed and nothing
 is owed. On a supervised line, or team-wide, it waits for the operator's verdict on the
 Memory page. Only accepted notes are recalled: a line's note by that line's two agents, a
 team-wide note by everyone. The operator's own notes are accepted at once.
 
 ```sh
-uv run python scripts/runbook/memory_notes.py
+uv run python scripts/verify/memory/memory_notes.py
 ```
 
 Expected, four blocks: the note `pending` and not yet recalled; a return reaching the
@@ -749,6 +820,8 @@ Manual:
 
 ### Similarity search
 
+*Needs: an embeddings endpoint on this machine; without one the script exits 2 and the entry is skipped.*
+
 With `COURTYARD_EMBEDDINGS_URL` set to a local OpenAI-compatible endpoint, records get a
 vector in the background and recall fuses full text with cosine similarity. Without an
 encoder recall stays full text and says so. Design: hub-memory.md section 7.
@@ -756,7 +829,7 @@ encoder recall stays full text and says so. Design: hub-memory.md section 7.
 ```sh
 ollama pull nomic-embed-text
 COURTYARD_EMBEDDINGS_URL=http://127.0.0.1:11434/v1/embeddings make run
-uv run python scripts/runbook/memory_vectors.py      # exits 2 with instructions otherwise
+uv run python scripts/verify/memory/memory_vectors.py      # exits 2 with instructions otherwise
 ```
 
 Expected, four blocks: `encoder : http`, `default_mode : hybrid`;
@@ -777,12 +850,14 @@ Manual:
 
 ### Export and retention
 
+*Needs: the script and a browser.*
+
 `GET /api/memory/export` streams every record in full, one JSON document per line, oldest
 first; `participant`, `line` and `since` narrow it. A case file goes with the archive it
 came from. Notes are never deleted. Design: hub-memory.md sections 6 and 8.
 
 ```sh
-uv run python scripts/runbook/memory_export.py
+uv run python scripts/verify/memory/memory_export.py
 ```
 
 Expected, four blocks: `case files of this run: 3`; `oldest first? : True`,
@@ -796,18 +871,24 @@ Manual:
    participant selected the file holds only that agent's records.
 2. Archive page: a row reads `· N case files`. Delete it: the confirm names them, and the
    Memory page no longer lists them.
-3. `curl -s 'http://127.0.0.1:2626/api/memory/export?since=2026-01-01T00:00:00Z' | wc -l`.
+3. `curl -s "$COURTYARD_HUB_URL/api/memory/export?since=2026-01-01T00:00:00Z" | wc -l`.
 
 ## The WebUI
 
 ### The Courtyard page
 
+*Needs: a browser, on a hub filled by seed_board.py.*
+
 The side bar, the team as rectangles, lines as two names and a coloured wire, the
 conversation pane, one input box for direct chats. Design: architecture §10, D18.
 
 ```sh
-make demo          # open http://127.0.0.1:2626/ when it says so
-make demo-stop
+uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py start --name webui
+export COURTYARD_HUB_URL=<the printed url>
+uv run python scripts/verify/webui/seed_board.py     # fills the board, prints the cast
+# ... open the hub's URL in a browser and work through the checkpoints ...
+uv run python scripts/verify/webui/seed_board.py --stop
+uv run python .claude/skills/courtyard-testing/scripts/scratch_hub.py stop --name webui
 ```
 
 Expected:
@@ -834,6 +915,8 @@ Expected:
 
 ### The envelope on the Admin page
 
+*Needs: a browser; the comparison needs a live agent.*
+
 Admin, **Message envelope**: one collapsible block per text an agent can receive, served
 by `GET /api/envelope` from the code that wraps real deliveries.
 
@@ -844,12 +927,14 @@ message and compare: identical apart from names, ids and the body.
 
 ### Log level
 
+*Needs: the script, which starts its own hub; the manual step runs the hub in a terminal.*
+
 `COURTYARD_LOG_LEVEL` (INFO by default, WARNING, ERROR, DEBUG) sets the hub's own loggers,
 uvicorn's and the request lines. A request logs at its real severity: below 400 INFO, 4xx
 WARNING, 5xx ERROR. The hub always prints one ready line.
 
 ```sh
-uv run python scripts/runbook/log_level.py           # own hub
+uv run python scripts/verify/hub/log_level.py           # own hub
 ```
 
 Expected, two blocks: at INFO every line prints and the 422 is a WARNING; at WARNING the
@@ -860,6 +945,8 @@ while the WebUI loads. A refusal, such as adding a team from a directory without
 charter and cancelling, prints its 422 as WARNING.
 
 ### The database's identity
+
+*Needs: the tests; the manual steps need two checkouts and stop this machine's postgres.*
 
 At startup the hub stamps the database with an identity or adopts the one there, and
 every pooled connection and health ping compares it. When another database answers on the
@@ -881,6 +968,8 @@ Manual, with two checkouts on one machine:
    A serves its own database again.
 
 ### The hub as a macOS app
+
+*Needs: the tests; the manual steps change this machine's login items.*
 
 `make install` builds `.venv`, creates `.env`, brings postgres up, writes and loads two
 LaunchAgents (`com.courtyard.hub`, `com.courtyard.tray`) and `~/Applications/Courtyard

@@ -433,10 +433,11 @@ WARNING and a 5xx as ERROR, so `WARNING` keeps failures visible while routine li
 quiet. At every level the hub prints one ready line once it is up: its address, the
 WebUI directory, the postgres it talks to and what the level will show.
 
-**Checks.** `make demo` runs two scripted dummy agents through the hub, including a
-supervised gate; `make demo-stop` removes them. `make test-comms` proves the operator to
-agent to operator round trip against a live Claude Code session.
-`uv run python scripts/runbook/terminal_spawners.py <Terminal|iTerm2|Ghostty>` opens,
+**Checks.** `make test-comms` proves the operator to agent to operator round trip
+against a live Claude Code session. To exercise a line with no model at all, run a dummy
+agent yourself: `uv run courtyard-dummy --name <a registered dummy> --token <its token>
+--behavior manual` types from a second terminal as that agent.
+`uv run python scripts/verify/shift/terminal_spawners.py <Terminal|iTerm2|Ghostty>` opens,
 verifies and closes one window in the named terminal application; run it after
 installing or updating a terminal app.
 

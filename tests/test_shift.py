@@ -358,7 +358,7 @@ WINDOW_IDS = {"Terminal": "4711", "iTerm2": "17", "Ghostty": "tab-group-abc"}
 
 class TestBuiltinSpawners:
     """The built-ins share one base (`OsascriptTerminal`): one ref shape, one liveness,
-    one close sequence. Driving the real AppleScript is the manual runbook check (it
+    one close sequence. Driving the real AppleScript is the manual verification procedure (it
     needs the apps installed); these hold what every app must do the same way."""
 
     @staticmethod
