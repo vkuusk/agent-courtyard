@@ -43,29 +43,60 @@ charter's version history and review mechanism for free.
 
 **The charter lives in its own directory, chosen by the operator.** Anywhere on
 disk, typically the root of its own small git repository; the hub is pointed at
-the path. Never inside an agent's workdir:
-beyond the fact that the team spans workdirs, an agent has write access to its
-own workdir, and a charter placed there would hand one team member the power
-to rewrite the team's rules of engagement.
-The driving use case: a dedicated repository makes team setups shareable
-between engineers; publishing the charter repo lets another operator
-clone it and initialize the same team on their own hub. The directory's name
-is the operator's choice; `team-charter/` is only the convention the docs use.
-A complete worked example ships in `examples/team-charters/team1/`.
+the path. The directory's name is the operator's choice; `team-charter/` is
+only the convention the docs use. A complete worked example ships in
+`examples/team-charters/team1/`.
+
+- **Never inside an agent's workdir.** Beyond the fact that the team spans
+  workdirs, an agent has write access to its own workdir, and a charter placed
+  there would hand one team member the power to rewrite the team's rules of
+  engagement.
+- **The driving use case is sharing.** A dedicated repository makes team
+  setups shareable between engineers; publishing the charter repo lets another
+  operator clone it and initialize the same team on their own hub.
 
 **The hub keeps a registry of teams, one of them current.** A team is a set of
 agents that talk to each other and work together; each team is one charter
-directory, and several can be registered
-with the hub. The directories can be subdirectories of one repository, for
-example `my-agent-teams/devops-team/` and `my-agent-teams/k8s-team/`, so one
-repo can carry an engineer's whole collection of teams. The hub stores the
-registered directories and which one is current. The WebUI shows the current
-team's name on the Courtyard page; Admin has a Teams section: add a team by
-directory (the native folder dialog) and a pulldown selecting the current team.
-Registering and selecting is all the registry does: selecting a team loads it
-(section 6) and removes nothing of the team that was current before. The hub
-stays git-agnostic: it reads and writes charter files; commits, history and
-review are the operator's.
+directory, and several can be registered with the hub. The hub stores the
+registered directories and which one is current.
+
+- **One repo can carry a collection of teams.** The directories can be
+  subdirectories of one repository, for example `my-agent-teams/devops-team/`
+  and `my-agent-teams/k8s-team/`.
+- **The WebUI.** The Courtyard page shows the current team's name; Admin has
+  a Teams section: add a team by directory (the native folder dialog) and a
+  pulldown selecting the current team.
+- **Registering and selecting is all the registry does.** Selecting a team
+  loads it (section 6) and removes nothing of the team that was current
+  before.
+- **The hub stays git-agnostic.** It reads and writes charter files; commits,
+  history and review are the operator's.
+
+**The current team is the courtyard.** An agent belongs to a team by being
+named in its charter; the hub derives membership from the charters it holds
+and stores nothing for it. Everything that acts on "the team" acts on the
+current team's members only:
+
+- **What the team sees.** The Courtyard page and its Lines panel, the shift's
+  targets, the gate count, the envelope's peer roster with its "not for"
+  lines, the membership hook's block, and discovery.
+- **What an agent knows.** Its teammates and nothing more, so it cannot
+  address an agent of another team. A send to a name outside the current
+  team is refused as unknown to this team, the same refusal as a name that
+  does not exist.
+- **What the operator sees.** The current team only. Lines with agents of
+  other teams leave the Courtyard page with their team; the archive stays
+  whole, and the Agents page lists every registered agent with its team.
+- **The other teams' agents.** Registered for every other purpose, tokens,
+  lines, threads, history and pending gate messages included, and invisible
+  until their team is selected again.
+- **A session outside the current team.** It may stay attached: it is not
+  disconnected, its sends are refused as "your team is not the current one",
+  and it has no card on the board.
+- **An agent in several charters.** The current team decides: the agent talks
+  within that team and to nobody else while that team is current, and that
+  team's per-machine overlay says where its terminal opens, since the
+  registration holds one project directory.
 
 **A current team is required.** The
 courtyard's team always has a charter directory: files are the source of

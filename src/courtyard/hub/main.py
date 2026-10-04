@@ -26,6 +26,7 @@ from courtyard.hub.core.encoder import encoder_from_config
 from courtyard.hub.core.errors import DomainError
 from courtyard.hub.core.events import EventBus
 from courtyard.hub.core.gate import EventApprover
+from courtyard.hub.core.membership import EVERYONE, Membership
 from courtyard.hub.core.memory import Memory
 from courtyard.hub.core.registry import Registry
 from courtyard.hub.core.shift import ShiftService
@@ -140,7 +141,14 @@ def create_app(config: Config | None = None) -> FastAPI:
         def discovery() -> str:
             return shift.get_settings().discovery
 
-        registry = Registry(storage, events, discovery=discovery)
+        def membership() -> Membership:
+            # the current team (team-charter.md): derived from the charters at call time;
+            # the team service is built last, so this looks it up when asked
+            teams = getattr(app.state, "teams", None)
+            return teams.membership() if teams else EVERYONE
+
+        shift.bind_membership(membership)
+        registry = Registry(storage, events, discovery=discovery, membership=membership)
         registry.ensure_operator()
         archiver = Archiver(storage, events)
         archiver.reconcile()  # lines of agents removed before archiving existed
@@ -177,6 +185,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             thread_budget=lambda: shift.get_settings().thread_budget,
             brake=lambda: shift.get_settings().brake,
             set_brake=lambda on: shift.update_settings({"brake": on}),
+            membership=membership,
         )
         # Hub memory (hub-memory.md): recall reads through the same settings and discovery
         # dial as the board; the case files themselves are written by the board at close.

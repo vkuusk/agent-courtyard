@@ -48,6 +48,7 @@ from courtyard.hub.core.errors import (
     UnknownAgent,
     WorkdirNotFound,
 )
+from courtyard.hub.core.membership import Membership
 from courtyard.hub.core.registry import Registry
 from courtyard.hub.storage.repo import Storage
 
@@ -92,6 +93,21 @@ class TeamService:
             if team.is_current:
                 return team
         return None
+
+    def membership(self) -> Membership:
+        """Who is on the current team, from the charters as last loaded: the current
+        charter's names, and every agent's team name with the current team winning."""
+        teams = self.list()
+        current = next((t for t in teams if t.is_current), None)
+        by_agent: dict[str, str] = {}
+        for team in sorted(teams, key=lambda t: not t.is_current):  # current first
+            if team.charter and team.name:
+                for card in team.charter.agents:
+                    by_agent.setdefault(card.name, team.name)
+        if current is None:
+            return Membership(teams=by_agent)
+        names = frozenset(c.name for c in current.charter.agents) if current.charter else None
+        return Membership(team=current.name, names=names, teams=by_agent)
 
     def add(self, charter_dir: str, name: str | None = None) -> Team:
         """Register a directory. One with a charter is loaded as found (problems land in
@@ -156,6 +172,10 @@ class TeamService:
             )
         if not updated:
             raise TeamNotFound("no such team")
+        if team.is_current and self._registry is not None:
+            # membership is derived from the charters: the current one just changed, so
+            # every agent's team view may have (team-charter.md)
+            self._registry.republish()
         return updated
 
     def set_current(self, team_id: UUID | None, hub_url: str) -> list[Team]:

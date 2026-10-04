@@ -28,6 +28,7 @@ from courtyard.common.models import BUILTIN_TERMINALS, Agent, Settings, ShiftSta
 from courtyard.hub.core.board import expire_open_work
 from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, NoTargets, ShiftBusy
 from courtyard.hub.core.events import EventBus
+from courtyard.hub.core.membership import EVERYONE, Membership
 from courtyard.hub.core.spawn import TerminalSpawner, make_spawner
 from courtyard.hub.storage.repo import Storage
 
@@ -88,9 +89,12 @@ class ShiftService:
         clock: Callable[[], datetime] = _now,
         spawner_factory: Callable[[str], TerminalSpawner] | None = None,
         hub_started_at: datetime | None = None,
+        membership: Callable[[], Membership] | None = None,
     ):
         self._storage = storage
         self._events = events
+        # the current team (team-charter.md): the shift starts its members only
+        self._membership = membership or (lambda: EVERYONE)
         self._heartbeat = heartbeat_seconds
         self._clock = clock
         # The default factory resolves custom terminal apps (item 20) against the
@@ -159,6 +163,9 @@ class ShiftService:
             )
 
     # -- the shift --------------------------------------------------------------------
+
+    def bind_membership(self, membership: Callable[[], Membership]) -> None:
+        self._membership = membership
 
     def bind_verifier(self, verifier: Callable[[], datetime]) -> None:
         """D28 (item 31): the liveness layer's `begin_verification` — flips stored
@@ -420,10 +427,13 @@ class ShiftService:
         (D32); a dummy is a test twin, started by whoever is testing."""
         launchable: list[Agent] = []
         skipped: list[str] = []
+        members = self._membership()
         with self._storage.transaction() as uow:
             for agent in uow.agents.list():
                 if agent.removed_at is not None or agent.type == "human":
                     continue
+                if not members.includes(agent):
+                    continue  # another team's agent: not this shift's business
                 if agent.type not in ("claude-code", "pi"):
                     skipped.append(agent.name)
                 elif not agent.workdir:
@@ -434,12 +444,14 @@ class ShiftService:
         return launchable, skipped
 
     def _without_workdir(self) -> list[str]:
-        """Names of launchable-type agents that have no project directory."""
+        """Names of the team's launchable-type agents that have no project directory."""
+        members = self._membership()
         with self._storage.transaction() as uow:
             return sorted(
                 agent.name
                 for agent in uow.agents.list()
                 if agent.removed_at is None
+                and members.includes(agent)
                 and agent.type in ("claude-code", "pi")
                 and not agent.workdir
             )

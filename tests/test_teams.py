@@ -465,6 +465,67 @@ def test_anti_scope_reaches_the_peers_roster(client, tmp_path):
     assert patched.json()["anti_scope"] == "code of any kind"
 
 
+def test_the_current_team_is_the_courtyard(client, tmp_path):
+    """team-charter.md, "The current team is the courtyard": with a second team selected,
+    the first team's agents are registered but off the team: marked so on the agent view,
+    absent from the roster, unreachable by name, refused as senders, their gate
+    messages unseen."""
+    from conftest import auth
+
+    first = _make_current(client, fixture_copy(tmp_path))  # infra, tf-dev, scribe
+    infra_token = client.get("/api/agents/infra/token").json()["token"]
+    tfdev_token = client.get("/api/agents/tf-dev/token").json()["token"]
+    # a message of the first team held at its gate (infra - scribe is on the default mode)
+    held = client.post(
+        "/api/lines/send", json={"to": "scribe", "body": "held"}, headers=auth(infra_token)
+    )
+    assert held.json()["status"] == "pending_gate", held.text
+    assert len(client.get("/api/gate/pending").json()) == 1
+
+    second_dir = shutil.copytree(
+        Path(__file__).parents[1] / "examples" / "team-charters" / "team1", tmp_path / "team1"
+    )
+    (second_dir / "workdirs.local.yml").unlink()
+    second = _make_current(client, second_dir)  # agent1, agent2
+    agent1_token = client.get("/api/agents/agent1/token").json()["token"]
+
+    # the agent view: everyone registered, membership and team derived from the charters
+    by_name = {a["name"]: a for a in client.get("/api/agents").json()}
+    assert by_name["agent1"]["on_team"] and by_name["agent1"]["team"] == "team1"
+    assert not by_name["infra"]["on_team"] and by_name["infra"]["team"] == "demo-devops"
+    assert by_name["operator"]["on_team"] and by_name["operator"]["team"] is None
+    # the roster names teammates only
+    rendered = client.get("/api/agents/agent1/peers", headers=auth(agent1_token)).json()["rendered"]
+    assert "agent2" in rendered and "infra" not in rendered
+    # a name outside the team is unknown, and the hint names teammates only
+    refused = client.post(
+        "/api/lines/send", json={"to": "infra", "body": "hi"}, headers=auth(agent1_token)
+    )
+    assert refused.status_code == 404, refused.text
+    assert refused.json()["error"]["code"] == "unknown_agent"
+    assert "infra" not in refused.json()["error"]["message"].split(";")[1]
+    # the operator cannot reach the other team either
+    assert client.post("/api/operator/send", json={"to": "infra", "body": "hi"}).status_code == 404
+    # a sender whose team is not current is refused as such
+    refused = client.post(
+        "/api/lines/send", json={"to": "tf-dev", "body": "hi"}, headers=auth(tfdev_token)
+    )
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["error"]["code"] == "not_on_team"
+    assert "'team1'" in refused.json()["error"]["message"]
+    # the other team's gate message waits unseen, and no link forms across teams
+    assert client.get("/api/gate/pending").json() == []
+    assert client.post("/api/lines", json={"a": "agent1", "b": "infra"}).status_code == 404
+
+    # back on the first team: everything is there again
+    assert client.post("/api/teams/current", json={"team_id": first}).status_code == 200
+    assert len(client.get("/api/gate/pending").json()) == 1
+    by_name = {a["name"]: a for a in client.get("/api/agents").json()}
+    assert by_name["infra"]["on_team"] and not by_name["agent1"]["on_team"]
+    assert by_name["agent1"]["team"] == "team1"
+    assert second  # registered throughout
+
+
 # ---- slice 3: write-back from the agent forms ---------------------------------------
 
 

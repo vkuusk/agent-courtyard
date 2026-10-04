@@ -23,6 +23,7 @@ from courtyard.common.models import BUILTIN_TERMINALS, Settings
 from courtyard.hub.core import spawn
 from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, NoTargets, ShiftBusy
 from courtyard.hub.core.events import EventBus
+from courtyard.hub.core.membership import Membership
 from courtyard.hub.core.shift import SETTLE_SECONDS, ShiftService, launch_command
 from courtyard.hub.core.spawn import (
     BUILTIN_SPAWNERS,
@@ -204,6 +205,25 @@ class TestShiftMachine:
         status = service.tick()
         assert [cwd for cwd, _ in spawner.spawned] == ["/tmp/alpha"]
         assert sorted(status.skipped) == ["beta", "twin"]
+
+    def test_only_the_current_team_is_started(self, storage):
+        # team-charter.md: another team's agent, directory or not, is not this shift's business
+        clock, spawner = Clock(), FakeSpawner()
+        service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))
+        service.bind_membership(lambda: Membership(team="t", names=frozenset({"ours"})))
+        add_agent(storage, "ours", workdir="/tmp/ours")
+        add_agent(storage, "theirs", workdir="/tmp/theirs")
+        add_agent(storage, "theirs-homeless", workdir=None)
+        service.start()
+        clock.tick(21)
+        status = service.tick()
+        assert [cwd for cwd, _ in spawner.spawned] == ["/tmp/ours"]
+        assert status.skipped == []
+        # a team whose own agents all lack a directory is refused, whatever other teams hold
+        service.end(force=True)
+        service.bind_membership(lambda: Membership(team="t", names=frozenset({"theirs-homeless"})))
+        with pytest.raises(NoTargets):
+            service.start()
 
     def test_dummy_only_team_still_starts(self, storage):
         clock, spawner = Clock(), FakeSpawner()

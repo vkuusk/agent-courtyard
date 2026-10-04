@@ -107,6 +107,40 @@ def test_farewell_reaches_every_stream(live_hub):
     assert httpx.post(f"{hub}/api/hub/farewell", json={"reason": "later"}).status_code == 422
 
 
+def test_a_team_switch_republishes_every_agent(live_hub, tmp_path):
+    """team-charter.md: membership is derived, so a switch changes every agent's team
+    view; the hub says so on the stream, the WebUI never refetches to notice."""
+    import shutil
+    from pathlib import Path
+
+    hub = live_hub()
+    admin = HubClient(hub)
+    first = next(t for t in admin.teams() if t.is_current)
+    admin.register_agent("alice", "dummy")
+    example = Path(__file__).parents[1] / "examples" / "team-charters" / "team1"
+    second_dir = shutil.copytree(example, tmp_path / "team1")
+    (second_dir / "workdirs.local.yml").unlink()
+    second = admin.add_team(str(second_dir))
+    tap = EventTap(hub)
+    admin.set_current_team(second.id)
+
+    def event_for(name, on_team):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            for t, d in tap.events:
+                if t == "agent" and d["name"] == name and d["on_team"] is on_team:
+                    return d
+            time.sleep(0.02)
+        raise AssertionError(f"no agent event for {name} with on_team={on_team}")
+
+    assert event_for("alice", False)["team"] == first.name
+    assert event_for("agent1", True)["team"] == "team1"
+    admin.set_current_team(first.id)
+    assert event_for("alice", True)["team"] == first.name
+    assert event_for("agent1", False)["team"] == "team1"
+    admin.close()
+
+
 def test_a_view_shapes_every_event_of_its_type_whoever_publishes():
     """State the hub keeps beside the stored row (an agent's rejected-token note) must
     reach the WebUI on every agent event, not only the registry's own: the store keeps

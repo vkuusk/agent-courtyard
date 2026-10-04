@@ -27,15 +27,18 @@ from courtyard.hub.core.errors import (
     NoServedThread,
     NotAllowed,
     NotLinked,
+    NotOnTeam,
     NotThreadInitiator,
     ThreadLocked,
     ThreadStillOpen,
+    UnknownAgent,
 )
 from courtyard.hub.core.events import EventBus
 from courtyard.hub.core.gate import Approver
+from courtyard.hub.core.membership import EVERYONE, Membership
 from courtyard.hub.core.memory import case_file_in
 from courtyard.hub.core.owed import needs_owed, owed_replies, served_thread
-from courtyard.hub.core.registry import OPERATOR_NAME, Registry
+from courtyard.hub.core.registry import OPERATOR_NAME, Registry, unknown_agent_text
 from courtyard.hub.storage.repo import Storage, UnitOfWork
 
 
@@ -148,10 +151,13 @@ class Board:
         thread_budget: Callable[[], int] | None = None,
         brake: Callable[[], bool] | None = None,
         set_brake: Callable[[bool], None] | None = None,
+        membership: Callable[[], Membership] | None = None,
     ):
         self._storage = storage
         self._registry = registry
         self._approver = approver
+        # the current team (team-charter.md): messages and links stay inside it
+        self._membership = membership or (lambda: EVERYONE)
         self._max_body_bytes = max_body_bytes
         self._events = events
         self._deliverer = deliverer
@@ -197,7 +203,10 @@ class Board:
         locked = None
         lock_notices: list[Message] = []
         with self._storage.transaction() as uow:
-            recipient = self._registry.resolve(uow, to)
+            members = self._membership()
+            if not members.includes(sender):  # team-charter.md: its team is not current
+                raise NotOnTeam(texts.render("refusals.not_on_team", team=members.team))
+            recipient = self._on_team(uow, to)
             if recipient.id == sender.id:
                 raise InvalidRecipient(texts.render("refusals.send_to_self"))
             if recipient.removed_at is not None:
@@ -516,8 +525,32 @@ class Board:
         )
 
     def pending(self) -> list[Message]:
+        """The current team's gate: a message held between agents of another team waits
+        unseen until that team is selected again."""
         with self._storage.transaction() as uow:
-            return uow.messages.pending_gate()
+            members = self._membership()
+            if members.names is None:
+                return uow.messages.pending_gate()
+            on_team = {a.id for a in uow.agents.list() if members.includes(a)}
+            return [
+                m
+                for m in uow.messages.pending_gate()
+                if m.sender in on_team and m.recipient in on_team
+            ]
+
+    def _on_team(self, uow: UnitOfWork, name_or_id: str) -> Agent:
+        """Resolve a name inside the current team: an agent of another team is as unknown
+        as a name that does not exist, and the hint names teammates only."""
+        agent = self._registry.resolve(uow, name_or_id)
+        members = self._membership()
+        # a removed name is no team's member; the callers' agent_gone refusal says more
+        if agent.removed_at is None and not members.includes(agent):
+            raise UnknownAgent(
+                unknown_agent_text(
+                    name_or_id, [a for a in uow.agents.list() if members.includes(a)]
+                )
+            )
+        return agent
 
     # -- line administration -------------------------------------------------------
 
@@ -527,7 +560,7 @@ class Board:
         under auto (the line would have formed on first message anyway). `mode` (used
         by charter projection, D33) overrides the Admin default for the new line."""
         with self._storage.transaction() as uow:
-            agents = (self._registry.resolve(uow, a), self._registry.resolve(uow, b))
+            agents = (self._on_team(uow, a), self._on_team(uow, b))
             if agents[0].id == agents[1].id:
                 raise InvalidRecipient("cannot link an agent to itself")
             for agent in agents:

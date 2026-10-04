@@ -25,6 +25,7 @@ from courtyard.hub.core.errors import (
     UnknownAgent,
 )
 from courtyard.hub.core.events import EventBus
+from courtyard.hub.core.membership import EVERYONE, Membership
 from courtyard.hub.core.peers import peers_view
 from courtyard.hub.storage.repo import Storage, UnitOfWork
 
@@ -71,11 +72,14 @@ class Registry:
         storage: Storage,
         events: EventBus,
         discovery: Callable[[], str] | None = None,
+        membership: Callable[[], Membership] | None = None,
     ):
         self._storage = storage
         self._events = events
         # §5.8 (D22): under manual discovery the peers list narrows to linked agents.
         self._discovery = discovery or (lambda: "auto")
+        # the current team (team-charter.md): the roster and the agent view are scoped to it
+        self._membership = membership or (lambda: EVERYONE)
         # agent id -> when an attach under its name last came with a token that is not its
         # own. In memory on purpose: the adapter retries every 2 s, so a hub restart refills
         # it within seconds, and an attach with the right token ends it.
@@ -204,11 +208,21 @@ class Registry:
         with self._storage.transaction() as uow:
             return [self._with_rejection(a) for a in uow.agents.list()]
 
-    # -- rejected tokens: "not started yet" would hide a file that can never work ---------
+    def republish(self) -> None:
+        """One agent event per registered agent: the team view of every agent may have
+        changed (another team became current), and the WebUI keeps the last event's
+        object as the whole truth."""
+        for agent in self.list():
+            self._events.publish("agent", agent)
+
+    # -- the agent as shown: rejected token ("not started yet" would hide a file that can
+    # never work) and team membership -----------------------------------------------------
 
     def _with_rejection(self, agent: Agent) -> Agent:
         at = self._token_rejections.get(agent.id)
-        return agent.model_copy(update={"token_rejected_at": at}) if at else agent
+        if at:
+            agent = agent.model_copy(update={"token_rejected_at": at})
+        return self._membership().decorate(agent)
 
     def note_token_rejected(self, name_or_id: str) -> None:
         """An attach for a known agent name carried a token the hub does not know. Almost
@@ -243,7 +257,8 @@ class Registry:
                     line.agent_b if line.agent_a == agent.id else line.agent_a
                     for line in uow.lines.list_for_agent(agent.id)
                 }
-            return peers_view(uow.agents.list(), agent, linked)
+            members = self._membership()
+            return peers_view([a for a in uow.agents.list() if members.includes(a)], agent, linked)
 
     def authenticate(self, token: str) -> Agent:
         with self._storage.transaction() as uow:

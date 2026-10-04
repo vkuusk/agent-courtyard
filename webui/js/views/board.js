@@ -3,7 +3,7 @@
 
 import { html, useEffect, useRef, useState } from "../../vendor/htm-preact-standalone.module.js";
 import {
-  store, select, setPanelMax, teamAgents, isOperatorLine, isInactive, hasNewActivity, unreadWith, agentName,
+  store, select, setPanelMax, teamAgents, isOperatorLine, isInactive, isTeamLine, hasNewActivity, unreadWith, agentName,
   operatorLineWith, currentTeam, applyTeams, applySettings,
 } from "../store.js";
 import { useStore, fmtAgo, minutesSince } from "../ui.js";
@@ -418,7 +418,7 @@ export function Board() {
   const manual = store.settings?.discovery === "manual";
   // Lines of removed agents are archived (design §5.7), so every line here is live.
   const active = [...store.lines.values()]
-    .filter((l) => !isOperatorLine(l) && !isInactive(l))
+    .filter((l) => !isOperatorLine(l) && !isInactive(l) && isTeamLine(l))
     .map((l) => ({ l, rank: wireStatus(l).rank }))
     .sort((x, y) => x.rank - y.rank || recency(y.l).localeCompare(recency(x.l)))
     .map((x) => x.l);

@@ -8,6 +8,7 @@ agent_gone: agent {name!r} was removed from the courtyard
 send_to_self: cannot send a message to yourself
 no_line_with_self: you have no line with yourself
 not_linked: you have no line with {name!r}; the operator links agents in this courtyard
+not_on_team: your team is not the current one; the courtyard is on team {team!r} and carries no message for you until your team is selected again
 turn_violation: 'line busy: awaiting a reply to the message in flight; you may send again once it is answered'
 gate_pending:
   send: 'line blocked: a message is awaiting a gate decision'
