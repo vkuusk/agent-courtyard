@@ -21,7 +21,7 @@ import pytest
 
 from courtyard.common.models import BUILTIN_TERMINALS, Settings
 from courtyard.hub.core import spawn
-from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, ShiftBusy
+from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, NoTargets, ShiftBusy
 from courtyard.hub.core.events import EventBus
 from courtyard.hub.core.shift import SETTLE_SECONDS, ShiftService, launch_command
 from courtyard.hub.core.spawn import (
@@ -176,11 +176,40 @@ class TestShiftMachine:
         service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))
         add_agent(storage, "twin", type="dummy")
         add_agent(storage, "homeless", workdir=None)
+        add_agent(storage, "coder", workdir="/tmp/coder")
         service.start()
         clock.tick(21)
         status = service.tick()
-        assert spawner.spawned == []
+        assert [cwd for cwd, _ in spawner.spawned] == ["/tmp/coder"]
         assert sorted(status.skipped) == ["homeless", "twin"]
+
+    def test_start_refused_when_every_real_agent_lacks_a_workdir(self, storage):
+        # a charter just loaded, no directories chosen yet: no 0/0 shift, a refusal
+        clock, spawner = Clock(), FakeSpawner()
+        service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))
+        add_agent(storage, "beta", workdir=None)
+        add_agent(storage, "alpha", workdir=None)
+        add_agent(storage, "twin", type="dummy")
+        with pytest.raises(NoTargets) as info:
+            service.start()
+        assert info.value.extra["agents"] == ["alpha", "beta"]
+        assert "alpha, beta have no project directory" in str(info.value)
+        assert service.status().state == "off"
+        # one directory chosen: the shift starts and skips the other
+        with storage.transaction() as uow:
+            alpha = next(a for a in uow.agents.list() if a.name == "alpha")
+            uow.agents.update(alpha.id, {"workdir": "/tmp/alpha"})
+        service.start()
+        clock.tick(21)
+        status = service.tick()
+        assert [cwd for cwd, _ in spawner.spawned] == ["/tmp/alpha"]
+        assert sorted(status.skipped) == ["beta", "twin"]
+
+    def test_dummy_only_team_still_starts(self, storage):
+        clock, spawner = Clock(), FakeSpawner()
+        service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))
+        add_agent(storage, "twin", type="dummy")
+        assert service.start().state == "starting"
 
     def test_settles_on_when_everyone_connects(self, storage):
         clock, spawner = Clock(), FakeSpawner()

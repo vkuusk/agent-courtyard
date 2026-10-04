@@ -935,6 +935,15 @@ def disconnect_agents() -> list[str] | None:
     return lines
 
 
+def farewell() -> None:
+    """Tell every open WebUI that the hub is going down for good (it shows "Courtyard is
+    uninstalled" instead of reconnecting). Best effort: the uninstall goes on without."""
+    try:
+        post_json("/api/hub/farewell", {"reason": "uninstalled"}, timeout=3)
+    except (urllib.error.URLError, OSError, ValueError):
+        pass
+
+
 def hub_up_for_uninstall(inst: Instance) -> bool:
     """The disconnect step needs the hub: start it when it is down (Docker permitting)."""
     if health(hub_url()):
@@ -979,6 +988,8 @@ def uninstall(purge: bool) -> None:
     else:
         for line in outcome:
             say("  " + line)
+    if outcome is not None:
+        farewell()
     say(f"2. the app ({inst.name}), its login item, settings and logs")
     quit_app(inst, unregister_login_item=True)
     if read_pid() is not None:

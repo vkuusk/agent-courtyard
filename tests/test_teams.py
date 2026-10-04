@@ -53,19 +53,21 @@ def test_fixture_charter_loads_clean():
 
 
 def test_example_charter_loads_clean():
-    """The shipped example (examples/team-charters/aws-devops) must stay loadable —
-    it is the worked example the docs point at."""
-    example = Path(__file__).parents[1] / "examples" / "team-charters" / "aws-devops"
-    charter, report = load_charter(example)
+    """The shipped example (examples/team-charters/team1) must stay loadable, with its
+    agents' directories resolved into the checkout's sandbox: it is the worked example
+    the docs point at, and loading it as is must leave a team that can start a shift."""
+    root = Path(__file__).parents[1]
+    charter, report = load_charter(root / "examples" / "team-charters" / "team1")
     assert report == []
-    assert charter.name == "aws-devops"
-    assert charter.discovery == "manual"
-    assert {a.name for a in charter.agents} == {"infra-agent", "tf-developer", "argocd-agent"}
+    assert charter.name == "team1"
+    assert charter.discovery is None
+    assert {a.name for a in charter.agents} == {"agent1", "agent2"}
     assert all(a.type and a.description and a.sme_domain and a.anti_scope for a in charter.agents)
-    assert [(li.a, li.b, li.mode) for li in charter.links] == [
-        ("infra-agent", "tf-developer", "auto_pass"),
-        ("infra-agent", "argocd-agent", None),
-    ]
+    assert [(li.a, li.b, li.mode) for li in charter.links] == [("agent1", "agent2", None)]
+    for agent in charter.agents:
+        workdir = root / "sandbox" / "example-workdirs" / "team1" / agent.name
+        assert agent.workdir == str(workdir.resolve())
+        assert (workdir / "README.md").is_file()
 
 
 def test_missing_index_is_the_only_fatal_case(tmp_path):
@@ -244,11 +246,14 @@ def test_bad_discovery_is_reported_and_left_undeclared(tmp_path):
 def test_workdir_overlay_fills_cards_and_reports_strangers(tmp_path):
     charter_dir = fixture_copy(tmp_path)
     (charter_dir / "workdirs.local.yml").write_text(
-        f"workdirs:\n  infra: {tmp_path}\n  stranger: /nowhere\n"
+        f"workdirs:\n  infra: {tmp_path}\n  scribe: ../scribe-work\n  stranger: /nowhere\n"
     )
     charter, report = load_charter(charter_dir)
-    assert charter.agents[0].workdir == str(tmp_path)
-    assert charter.agents[1].workdir is None
+    by_name = {a.name: a for a in charter.agents}
+    assert by_name["infra"].workdir == str(tmp_path)
+    # a relative path is taken from the charter directory (the shipped example's way)
+    assert by_name["scribe"].workdir == str((charter_dir / ".." / "scribe-work").resolve())
+    assert by_name["tf-dev"].workdir is None
     assert "stranger" in report[0]
 
 
@@ -418,10 +423,12 @@ def test_workdir_answer_writes_the_overlay_and_the_registration(client, tmp_path
     assert nowhere.status_code == 400
 
 
-def test_shift_guard_refuses_projection_while_a_shift_runs(client):
+def test_shift_guard_refuses_projection_while_a_shift_runs(client, tmp_path):
     """D33's lean guard: projection changes registrations under live agents, so the
     current team can be neither reloaded nor changed until the shift ends."""
-    team_id = _make_current(client, FIXTURE)
+    team_id = _make_current(client, fixture_copy(tmp_path))
+    # one agent with a directory: a team nobody can start gets no shift (no_targets)
+    client.post(f"/api/teams/{team_id}/workdirs", json={"agent": "infra", "workdir": str(tmp_path)})
     assert client.post("/api/shift/start").status_code == 200
     refused = client.post(f"/api/teams/{team_id}/reload")
     assert refused.status_code == 409

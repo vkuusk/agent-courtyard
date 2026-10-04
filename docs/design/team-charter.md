@@ -51,7 +51,7 @@ The driving use case: a dedicated repository makes team setups shareable
 between engineers; publishing the charter repo lets another operator
 clone it and initialize the same team on their own hub. The directory's name
 is the operator's choice; `team-charter/` is only the convention the docs use.
-A complete worked example ships in `examples/team-charters/aws-devops/`.
+A complete worked example ships in `examples/team-charters/team1/`.
 
 **The hub keeps a registry of teams, one of them current.** A team is a set of
 agents that talk to each other and work together; each team is one charter
@@ -133,10 +133,12 @@ travels with the repo when the charter is shared.
 Workdirs are never written into shared charter files; a
 separate per-machine entry holds each agent's project directory on this
 machine: `workdirs.local.yml` beside the index, a `workdirs:` mapping of agent
-name to absolute path, written by the hub when the operator answers an agent's
-directory question in the Teams view (the native folder dialog). The file starts with a
-never-commit warning; the hub does not edit the operator's `.gitignore`, the
-same stance D15 took for the token file. A charter agent without an answer
+name to path, absolute or relative to the charter directory, written by the hub
+when the operator answers an agent's directory question in the Teams view (the
+native folder dialog). The file starts with a never-commit warning; the hub does
+not edit the operator's `.gitignore`, the same stance D15 took for the token
+file. The shipped example is the one charter that commits its overlay: relative
+paths into the checkout's `sandbox/example-workdirs`, the same on every machine. A charter agent without an answer
 simply registers without a workdir, exactly the state the shift already skips
 and the Agents page already explains.
 

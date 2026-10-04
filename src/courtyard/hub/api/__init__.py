@@ -4,8 +4,10 @@ import asyncio
 import os
 import signal
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
 
 from courtyard.adapters.claude_code.mcp_server import INSTRUCTIONS
 from courtyard.hub.api import (
@@ -37,6 +39,17 @@ def config() -> dict[str, str | bool]:
 
 def supervised() -> bool:
     return bool(os.environ.get("COURTYARD_SUPERVISED"))
+
+
+class Farewell(BaseModel):
+    reason: Literal["uninstalled"]
+
+
+@router.post("/hub/farewell", status_code=204)
+def farewell(body: Farewell, request: Request) -> None:
+    """The last word before the hub goes down for good: every open WebUI shows the
+    reason instead of reconnecting. The uninstall sends it before stopping the hub."""
+    request.app.state.events.publish("farewell", body)
 
 
 def _exit_hub() -> None:

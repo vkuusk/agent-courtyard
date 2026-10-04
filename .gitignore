@@ -15,6 +15,11 @@ temp/
 # local experimentation area — only its README travels with the repo
 sandbox/*
 !sandbox/README.md
+# the example team's project directories: only their READMEs travel with the repo
+!sandbox/example-workdirs/
+sandbox/example-workdirs/**
+!sandbox/example-workdirs/**/
+!sandbox/example-workdirs/**/README.md
 .claude/settings.local.json
 .env
 docker-compose.override.yml

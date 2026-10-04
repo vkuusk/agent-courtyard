@@ -1,0 +1,17 @@
+# An example team charter: the smallest team, two agents that pass a text between them.
+# Load it as it is to see a shift run, or copy it and adapt it; the format is described
+# in docs/design/team-charter.md.
+# Project directories are per machine and live in workdirs.local.yml beside this file.
+# This example ships one that points at sandbox/example-workdirs/team1 in the courtyard
+# checkout, so a load leaves both agents ready to start.
+team:
+  name: team1
+  agents:
+    agent1:
+      agent-config-dir: agent1
+    agent2:
+      agent-config-dir: agent2
+  links:
+    # the team's one line, on the hub's default gate mode (supervised unless the
+    # operator changed the Admin default); `mode: auto_pass` would skip the gate
+    - between: [agent1, agent2]

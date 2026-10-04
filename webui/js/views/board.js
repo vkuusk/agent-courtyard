@@ -57,6 +57,9 @@ function AgentCard({ agent }) {
     foot = "token rejected, rewrite the agent's files";
     footCls = "warn";
   }
+  // A charter just loaded, no directory chosen yet: the shift cannot start this agent.
+  const homeless = launchable(agent) && !agent.workdir && agent.status !== "connected";
+  if (homeless) { foot = "no project directory yet · set it in edit"; footCls = "warn"; }
   if (!foot && noChannel) { foot = "started without the channel"; footCls = "warn"; }
   else if (!foot && agent.delivery_check === "failed") { foot = "delivery check failed"; footCls = "warn"; }
   else if (!foot && agent.delivery_check === "pending") { foot = "checking delivery…"; footCls = ""; }
@@ -79,9 +82,18 @@ function AgentCard({ agent }) {
             title=${checkTitle} onClick=${ping}>${verified ? "✓" : "✓?"}</span>`
         : null}</span>
     <span class="owns">${agent.sme_domain ?? agent.description ?? agent.type}</span>
-    ${foot ? html`<span class="foot ${footCls}">${foot}</span>` : null}
+    ${foot ? html`<span class="foot ${footCls}" onClick=${homeless ? toEdit(agent) : null}>${foot}</span>` : null}
   </button>`;
 }
+
+// The shift's launchable types (claude-code and pi, D32), as the hub counts them.
+const launchable = (a) => a.type === "claude-code" || a.type === "pi";
+// The Agents page with this agent's edit form open (the directory field is there).
+const toEdit = (agent) => (e) => {
+  e.stopPropagation();
+  store.ui.editAgent = agent.id;
+  location.hash = "#/agents";
+};
 
 // Item 33 (D29): a session started without the channels flag ACKs pushes while Claude
 // Code drops every event — the board would show a healthy green over a deaf agent.
@@ -224,10 +236,22 @@ function ShiftPill() {
   }
 
   // Launchable types, matching the hub's shift targets (claude-code and pi, D32).
-  const targets = teamAgents().filter(
-    (a) => (a.type === "claude-code" || a.type === "pi") && a.workdir,
-  );
+  const targets = teamAgents().filter((a) => launchable(a) && a.workdir);
   const up = targets.filter((a) => a.status === "connected").length;
+  // Agents the shift cannot start: no project directory on this machine.
+  const homeless = teamAgents().filter((a) => launchable(a) && !a.workdir).map((a) => a.name);
+  const homelessNote = homeless.length
+    ? html`<a class="shift-note warn" href="#/agents"
+        title="set the directory on the Agents page, edit">${homeless.join(", ")}: no project directory</a>`
+    : null;
+  const start = async () => {
+    try {
+      await api.shiftStart();
+    } catch (e) {
+      // no_targets: every real agent lacks a directory; the cards say which
+      alert(e.message);
+    }
+  };
   const endShift = async () => {
     const windows = shift.spawns.length;
     const what = windows ? ` The ${windows} terminal window${windows === 1 ? "" : "s"} it opened will close.` : "";
@@ -243,7 +267,9 @@ function ShiftPill() {
   };
 
   if (shift.state === "off") {
-    return html`<button class="shift-pill start" onClick=${() => api.shiftStart()}>▶ Start shift</button>`;
+    return html`<span class="shift-group">
+      <button class="shift-pill start" onClick=${start}>▶ Start shift</button>${homelessNote}
+    </span>`;
   }
   if (shift.stale) {
     // D25: the shift was left open and nobody is home — ask, don't guess. "Not now"
@@ -271,7 +297,7 @@ function ShiftPill() {
   // still reporting (D25 amended by the architect, 2026-08-26); a window that is
   // merely stuck on a first-run dialog is never doubled.
   return html`<span class="shift-group">
-    <span class="shift-pill on"><span class="dot connected" /> ${up}/${targets.length} on shift</span>
+    <span class="shift-pill on"><span class="dot connected" /> ${up}/${targets.length} on shift</span>${homelessNote}
     ${up < targets.length && targets.length > 0
       ? html`<button class="shift-pill start" title="open terminals for the agents that are down"
           onClick=${() => api.shiftResume().catch((e) => alert(e.message))}>▶ Resume shift</button>`

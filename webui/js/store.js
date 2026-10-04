@@ -22,6 +22,7 @@ export const store = {
   builtinTerminals: [], // the apps the shift fully drives (from the hub; Admin's pulldown)
   teams: [], // the team charter registry (D33) — Admin manages it, the board names the current one
   sse: "connecting", // connecting | live | lost
+  farewell: null, // the hub's last word (`uninstalled`): the page stops reconnecting
   version: 0, // bumped on every change; lets a component catch up if it subscribed late
   archiveVersion: 0, // bumped when an archive is created (the Archive page refetches)
   memoryVersion: 0, // bumped when a case file is written (the Memory page refetches)
@@ -33,6 +34,7 @@ export const store = {
     shiftQuestionDismissed: false, // D25: "Not now" on the stale-shift question (per page load)
     collapsed: localStorage.getItem(RAIL_KEY) === "collapsed",
     showInactive: false,
+    editAgent: null, // agent id whose edit form the Agents page opens on arrival (a card's foot)
     theme: localStorage.getItem(THEME_KEY) || "system", // system | light | dark
     panels: readPanels(),
   },
@@ -335,6 +337,11 @@ export function connectEvents() {
   for (const kind of ["agent", "line", "thread", "message", "gate", "archive", "memory", "shift"]) {
     es.addEventListener(kind, (e) => onEvent(kind, JSON.parse(e.data)));
   }
+  es.addEventListener("farewell", (e) => {
+    store.farewell = JSON.parse(e.data).reason;
+    es.close(); // no reconnecting: the hub is gone for good
+    notify();
+  });
   es.onopen = () => {
     store.sse = "live";
     refreshSnapshot(); // catch up on anything missed while disconnected

@@ -872,6 +872,10 @@ What **Start shift** does, in order:
 1. **Target set** = every registered agent whose type has a launch profile. v1 that is
    `claude-code`; `human` is the operator; `dummy` agents are skipped and their cards
    simply stay as they are (a dummy is a test twin — started by whoever is testing).
+   An agent of a launchable type without a project directory on this machine is skipped
+   too, its card says so, and when that leaves no target at all (a charter just loaded,
+   no directories chosen yet) Start shift is refused (`no_targets`, naming the agents)
+   instead of opening an empty shift.
    The launch profile (§3) is the per-adapter seam: the shift never knows how a
    Claude Code agent starts; it asks the agent's adapter type for a profile —
    for `claude-code`: *terminal window, `cd <workdir>`, the launch command already shown
@@ -1216,11 +1220,15 @@ from the release instead of building it.
 `make uninstall` is one Python command, and the menu's Uninstall runs the same one:
 start the hub when it is down (Docker permitting; otherwise the per-agent
 `courtyard-invite --disconnect` command is printed), take the courtyard files out of
-every agent's directory, end the hub and `docker compose down`, remove the Login Item,
+every agent's directory, tell every open WebUI (`POST /api/hub/farewell`, one SSE event;
+the page shows "Courtyard is uninstalled. Close this window." and stops reconnecting),
+end the hub and `docker compose down`, remove the Login Item,
 the config directory, the logs and the app bundle, delete `.venv`. A running app is
 asked to quit first over the socket; from the menu the app quits last. The data volume,
 the registrations, the charter and `.env` stay; `PURGE=1` removes the volume and the
-images too.
+images too, which the menu offers as a second question before it starts. From the menu, a
+window with a four-step bar follows the script's numbered steps; the quit it asks for over the socket stops the hub and postgres and leaves the
+app running until the script is done.
 
 ## 10. WebUI
 

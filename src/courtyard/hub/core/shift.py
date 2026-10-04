@@ -26,7 +26,7 @@ from typing import Any
 
 from courtyard.common.models import BUILTIN_TERMINALS, Agent, Settings, ShiftStatus
 from courtyard.hub.core.board import expire_open_work
-from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, ShiftBusy
+from courtyard.hub.core.errors import InvalidSetting, NoShiftToResume, NoTargets, ShiftBusy
 from courtyard.hub.core.events import EventBus
 from courtyard.hub.core.spawn import TerminalSpawner, make_spawner
 from courtyard.hub.storage.repo import Storage
@@ -177,9 +177,21 @@ class ShiftService:
         board_events: list = []
         expired_threads: list = []
         with self._lock:
+            if self._doc.get("state") != "off" and not self._stale():
+                return self._status()
+            # A team whose real agents all lack a directory (a charter just loaded, no
+            # workdirs chosen yet) cannot be started: say so instead of a 0/0 shift.
+            launchable, _ = self._targets()
+            homeless = self._without_workdir()
+            if not launchable and homeless:
+                raise NoTargets(
+                    "no agent can be started: "
+                    + ", ".join(homeless)
+                    + (" has" if len(homeless) == 1 else " have")
+                    + " no project directory on this machine (Agents page, edit)",
+                    agents=homeless,
+                )
             if self._doc.get("state") != "off":
-                if not self._stale():
-                    return self._status()
                 expired_lines, board_events, expired_threads = self._end_locked(force=True)
             now = self._clock()
             # D28 (item 31): stored liveness may be the dead last shift's claim — ask
@@ -420,6 +432,17 @@ class ShiftService:
                 else:
                     launchable.append(agent)
         return launchable, skipped
+
+    def _without_workdir(self) -> list[str]:
+        """Names of launchable-type agents that have no project directory."""
+        with self._storage.transaction() as uow:
+            return sorted(
+                agent.name
+                for agent in uow.agents.list()
+                if agent.removed_at is None
+                and agent.type in ("claude-code", "pi")
+                and not agent.workdir
+            )
 
     def _spawn_missing(self, now: datetime) -> None:
         """Launch every target that is not connected and was not already spawned by this

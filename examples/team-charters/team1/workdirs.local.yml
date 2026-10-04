@@ -1,0 +1,7 @@
+# Per-machine project directories for this charter's agents. This example's are the two
+# directories under sandbox/example-workdirs/team1 in the courtyard checkout, given
+# relative to this file; the hub resolves them against this directory. Your own
+# charter's copy of this file holds your machine's paths and is never committed.
+workdirs:
+  agent1: ../../../sandbox/example-workdirs/team1/agent1
+  agent2: ../../../sandbox/example-workdirs/team1/agent2

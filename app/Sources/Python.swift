@@ -15,6 +15,12 @@ struct Python {
     /// Runs `install.py <args>`; returns (exit status, stdout). Blocking: call it off the
     /// main thread.
     func run(_ args: [String], timeout: TimeInterval = 120) -> (Int32, String) {
+        run(args, timeout: timeout, onLine: nil)
+    }
+
+    /// The same, with every line of output handed to `onLine` on the main thread as it
+    /// is printed (the uninstall's progress window follows install.py's numbered steps).
+    func run(_ args: [String], timeout: TimeInterval, onLine: ((String) -> Void)?) -> (Int32, String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: interpreter)
         var arguments = [directory.appendingPathComponent("scripts/install.py").path] + args
@@ -30,6 +36,33 @@ struct Python {
         } catch {
             AppLog.write("install.py \(args.joined(separator: " ")): \(error)")
             return (-1, "")
+        }
+        var collected = Data()
+        if let onLine = onLine {
+            var pending = ""
+            out.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty { return }
+                collected.append(chunk)
+                pending += String(decoding: chunk, as: UTF8.self)
+                while let nl = pending.firstIndex(of: "\n") {
+                    let line = String(pending[..<nl])
+                    pending = String(pending[pending.index(after: nl)...])
+                    DispatchQueue.main.async { onLine(line) }
+                }
+            }
+            process.waitUntilExit()
+            out.fileHandleForReading.readabilityHandler = nil
+            let rest = out.fileHandleForReading.readDataToEndOfFile()
+            collected.append(rest)
+            if !rest.isEmpty || !pending.isEmpty {
+                let tail = pending + String(decoding: rest, as: UTF8.self)
+                for line in tail.split(separator: "\n", omittingEmptySubsequences: true) {
+                    let text = String(line)
+                    DispatchQueue.main.async { onLine(text) }
+                }
+            }
+            return (process.terminationStatus, String(decoding: collected, as: UTF8.self))
         }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()

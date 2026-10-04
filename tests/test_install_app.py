@@ -595,6 +595,7 @@ def test_uninstall_removes_the_app_its_files_and_the_marker_in_order(tmp_path, m
         install, "hub_up_for_uninstall", lambda inst: calls.append("hub-up") or True
     )
     monkeypatch.setattr(install, "disconnect_agents", lambda: calls.append("disconnect") or [])
+    monkeypatch.setattr(install, "farewell", lambda: calls.append("farewell"))
     monkeypatch.setattr(
         install,
         "quit_app",
@@ -604,8 +605,8 @@ def test_uninstall_removes_the_app_its_files_and_the_marker_in_order(tmp_path, m
     monkeypatch.setattr(install, "compose_down", lambda purge=False: calls.append(f"down:{purge}"))
     monkeypatch.setattr(install, "sh", lambda *a, **k: calls.append(a[0][:3]))
     install.uninstall(purge=True)
-    assert calls[:4] == ["hub-up", "disconnect", "quit:True", "down:True"]
-    assert calls[4] == ["docker", "image", "rm"]
+    assert calls[:5] == ["hub-up", "disconnect", "farewell", "quit:True", "down:True"]
+    assert calls[5] == ["docker", "image", "rm"]
     assert not inst.app.exists() and not inst.support.exists() and not inst.logs.exists()
     assert not marker.exists() and not (tmp_path / "checkout" / ".venv").exists()
 

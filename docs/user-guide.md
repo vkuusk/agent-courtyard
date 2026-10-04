@@ -58,7 +58,7 @@ the shift and leaves the agents' terminal windows open, without a hub. The menu:
 | **Edit .env** | `.env` in the editor from Settings, else the system's text editor; the hub reads `.env` at start, so restart it after a save |
 | **Settings...** | start the hub with the app, start the app at login, the editor, the courtyard directory |
 | **About Courtyard** | the app's and the hub's version, the directory, the hub's address |
-| **Uninstall...** | `make uninstall`, then the app removes itself |
+| **Uninstall...** | `make uninstall` behind a four-step progress window, then the app removes itself; a second question offers to delete the database too (`PURGE=1`) |
 | **Quit Courtyard** | ends the hub and postgres; the app is back at the next login |
 
 Beside the icon: the number of messages waiting at the gate, or a hollow dot when the
@@ -83,7 +83,7 @@ started with `make hub-start` is the app's hub. Without the app (no install, or 
 | `make hub-start` | start the hub |
 | `make hub-restart` | restart the hub |
 | `make hub-open` | open the WebUI as its own window |
-| `make uninstall` | start the hub if it is down (Docker permitting), disconnect every registered agent's directory, stop the hub and postgres, remove the app, its settings and logs, delete `.venv`. The data volume, the registrations, the charter and `.env` stay |
+| `make uninstall` | start the hub if it is down (Docker permitting), disconnect every registered agent's directory, stop the hub and postgres, remove the app, its settings and logs, delete `.venv`. An open WebUI shows "Courtyard is uninstalled. Close this window." The data volume, the registrations, the charter and `.env` stay |
 | `make uninstall PURGE=1` | the same, plus the postgres volume and images |
 
 ### Settings
@@ -340,6 +340,13 @@ a green check mark, which means the session received the message. The same butto
 the check again. A card that warns "started without the channel" belongs to a session
 started as a plain `claude`: it can send to the hub but cannot hear it. Close it and
 start the agent with its `start-with-courtyard.sh`.
+
+An agent without a project directory on this machine cannot be started: its card says
+"no project directory yet", and a red note beside the shift pill names such agents. A team
+whose agents all lack a directory, typically a charter just loaded, gets no shift at all:
+Start shift answers with the names. Clicking the card's note opens the agent's edit form
+on the Agents page, where the directory is set; the expanded team under Admin, Teams has
+a picker per agent as well.
 
 **Resume shift** appears beside End shift whenever part of the team is down. It opens
 terminals for the missing agents only and delivers again whatever they still owed.

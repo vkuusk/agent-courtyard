@@ -11,7 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var status: [String: Any] = [:]
     private var pollTimer: Timer?
     private var settings: SettingsWindow?
+    private var progress: ProgressWindow?
     private var quitting = false
+    private var uninstalling = false  // the menu's Uninstall runs: the app quits last
 
     // menu items that change with the state
     private let stateLine = NSMenuItem(title: "hub: ...", action: nil, keyEquivalent: "")
@@ -203,18 +205,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
+    /// Uninstall: install.py does the work and prints its four numbered steps; the
+    /// progress window follows them. Its step 2 asks this app to quit over the socket,
+    /// which stops the hub and postgres but, with `uninstalling` set, leaves the app
+    /// running until the script has finished.
     @objc private func uninstall() {
         guard confirm("Uninstall \(Config.appName)?",
-                      "This takes the courtyard files out of every agent's directory, stops the hub and postgres, removes the app, its settings and logs, and the directory's .venv. The database, the registrations, the charter and .env stay.",
+                      "This takes the courtyard files out of every agent's directory, ends an open shift (the agents' windows stay), stops the hub and postgres, removes the app, its settings and logs, and the directory's .venv. The database, the registrations, the charter and .env stay.",
                       "Uninstall") else { return }
+        let purge = confirm("Also delete the database?",
+                            "The teams, agents, messages and memory in postgres are deleted with the data volume. Keep it and a later install finds this team again.",
+                            "Delete the data", cancel: "Keep the data")
         let py = python
+        uninstalling = true
         quitting = true
+        pollTimer?.invalidate()
+        let window = ProgressWindow(title: "Uninstalling \(Config.appName)", steps: 4)
+        progress = window
+        window.show("starting")
         DispatchQueue.global().async { [weak self] in
-            let (code, _) = py.run(["uninstall"], timeout: 600)
+            let (code, _) = py.run(["uninstall"] + (purge ? ["--purge"] : []), timeout: 600) { line in
+                // "N. what this step does" opens step N; "Uninstalled." is the end
+                if let dot = line.firstIndex(of: "."), let n = Int(line[..<dot]), line.hasPrefix("\(n). ") {
+                    window.step(n, String(line[line.index(dot, offsetBy: 2)...]))
+                } else if line.hasPrefix("Uninstalled") {
+                    window.done("Uninstalled")
+                }
+            }
             DispatchQueue.main.async {
                 AppLog.write("uninstall finished (status \(code))")
+                if code != 0 { window.done("uninstall failed (status \(code)), see \(Config.appLog.path)") }
                 self?.socket.close()
-                NSApp.terminate(nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + (code == 0 ? 1 : 5)) { NSApp.terminate(nil) }
             }
         }
     }
@@ -222,27 +244,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quitFromMenu() { quit(unregisterLoginItem: false) }
 
     /// Quit: ask when a shift is open (then end it, the windows stay), stop the hub,
-    /// compose down, and only then let the app go.
+    /// compose down, and only then let the app go. The waits run off the main thread so
+    /// the menu and the windows keep painting. During an uninstall (its script asked
+    /// for this quit) the app stays until the script is done.
     private func quit(unregisterLoginItem: Bool) {
-        if shiftState != "off" && hubUp {
+        let endShift = shiftState != "off" && hubUp
+        if endShift && !uninstalling {
             guard confirm("A shift is open", "Quit anyway? The shift ends (its books close); the agents' windows stay open, without a hub.", "Quit") else {
                 NSApp.reply(toApplicationShouldTerminate: false)
                 return
             }
-            _ = python.run(["shift-end", "--force", "--keep-terminals"])
         }
         quitting = true
         pollTimer?.invalidate()
         if unregisterLoginItem { setLoginItem(false) }
-        supervisor.stop { [weak self] in
-            guard let self = self else { return }
-            DispatchQueue.global().async {
-                self.supervisor.composeDown()
-                DispatchQueue.main.async {
-                    self.socket.close()
-                    AppLog.write("quit")
-                    NSApp.reply(toApplicationShouldTerminate: true)
-                    NSApp.terminate(nil)
+        let py = python
+        DispatchQueue.global().async { [weak self] in
+            if endShift { _ = py.run(["shift-end", "--force", "--keep-terminals"]) }
+            DispatchQueue.main.async {
+                self?.supervisor.stop { [weak self] in
+                    guard let self = self else { return }
+                    DispatchQueue.global().async {
+                        self.supervisor.composeDown()
+                        DispatchQueue.main.async {
+                            self.socket.close()  // the socket gone = quit done, to install.py
+                            if self.uninstalling {
+                                AppLog.write("hub and postgres down for the uninstall")
+                                return  // the uninstall's own completion quits the app
+                            }
+                            AppLog.write("quit")
+                            NSApp.reply(toApplicationShouldTerminate: true)
+                            NSApp.terminate(nil)
+                        }
+                    }
                 }
             }
         }
@@ -310,12 +344,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func confirm(_ title: String, _ text: String, _ button: String) -> Bool {
+    private func confirm(_ title: String, _ text: String, _ button: String, cancel: String = "Cancel") -> Bool {
         let a = NSAlert()
         a.messageText = title
         a.informativeText = text
         a.addButton(withTitle: button)
-        a.addButton(withTitle: "Cancel")
+        a.addButton(withTitle: cancel)
         NSApp.activate(ignoringOtherApps: true)
         return a.runModal() == .alertFirstButtonReturn
     }

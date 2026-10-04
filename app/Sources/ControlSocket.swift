@@ -51,6 +51,7 @@ final class ControlSocket {
 
     func close() {
         if fd >= 0 { Darwin.close(fd) }
+        fd = -1  // a second close is a no-op
         unlink(path)
     }
 

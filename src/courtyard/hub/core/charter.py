@@ -191,7 +191,10 @@ def _apply_workdirs(charter_dir: Path, cards: list[CharterCard], report: list[st
         elif not isinstance(workdir, str) or not workdir.strip():
             report.append(f"{WORKDIRS_FILE}: {agent_name} needs a path, got {workdir!r}")
         else:
-            card.workdir = workdir
+            # relative to the charter directory (how the shipped example points at
+            # its directories); absolute paths are taken as given
+            path = Path(workdir).expanduser()
+            card.workdir = str(path if path.is_absolute() else (charter_dir / path).resolve())
 
 
 def set_workdir(charter_dir: Path, agent_name: str, workdir: str | None) -> None:

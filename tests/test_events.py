@@ -97,6 +97,16 @@ def test_board_changes_stream_as_events(live_hub):
     admin.close()
 
 
+def test_farewell_reaches_every_stream(live_hub):
+    # the uninstall's last word: the WebUI shows it instead of reconnecting
+    hub = live_hub()
+    tap = EventTap(hub)
+    resp = httpx.post(f"{hub}/api/hub/farewell", json={"reason": "uninstalled"})
+    assert resp.status_code == 204
+    assert tap.wait_for("farewell") == {"reason": "uninstalled"}
+    assert httpx.post(f"{hub}/api/hub/farewell", json={"reason": "later"}).status_code == 422
+
+
 def test_a_view_shapes_every_event_of_its_type_whoever_publishes():
     """State the hub keeps beside the stored row (an agent's rejected-token note) must
     reach the WebUI on every agent event, not only the registry's own: the store keeps

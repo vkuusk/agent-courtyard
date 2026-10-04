@@ -489,6 +489,12 @@ Manual, which opens real windows:
    to "checking..." and fresh windows open.
 4. Admin, Team: `Always on` is disabled. The terminal application survives a hub restart.
 5. Quit Terminal.app, Start shift with N agents down: exactly N windows, no empty one.
+6. Admin, Teams: load a charter whose agents have no directory on this machine yet (a
+   copy of `examples/team-charters/team1` without its `workdirs.local.yml`), make it
+   current. Every card's foot reads "no project directory yet" and clicking it opens that
+   agent's edit form on the Agents page. **▶ Start shift** is refused with the agents'
+   names; the pill stays at Start. Choose one agent's directory: Start shift opens that
+   one window and the red note beside the pill names the others.
 
 Nothing the shift did not open is ever closed, and a running agent is never started twice.
 
@@ -670,7 +676,7 @@ Manual, on a fresh hub:
 3. Admin, Teams: the current team's remove button is disabled, and the pulldown has no
    empty choice.
 4. Add a directory that holds a charter, such as a copy of
-   `examples/team-charters/aws-devops`, and select it: its agents appear, and an agent of
+   `examples/team-charters/team1`, and select it: its agents appear, and an agent of
    no other team is adopted into it.
 
 ### Registering, reloading, selecting
@@ -746,17 +752,19 @@ Agents already registered are never rewritten by a reload. Script checkpoints 6 
 
 Manual, on a fresh hub:
 
-1. Copy `examples/team-charters/aws-devops`. Make two empty directories and write
-   `workdirs.local.yml` beside the copy's `team-definition.yml`, mapping `infra-agent` and
-   `tf-developer` to them. Leave `argocd-agent` out.
-2. Courtyard page, **browse**, pick the copy. Three agents appear. Both directories hold
+1. Copy `examples/team-charters/team1`. Make one empty directory and rewrite the copy's
+   `workdirs.local.yml` to map `agent1` to it; leave `agent2` out.
+2. Courtyard page, **browse**, pick the copy. Two agents appear. The directory holds
    `.mcp.json` (`-rw-------`), `.claude/settings.local.json` and
    `start-with-courtyard.sh`, with the token of the agent's launch config.
-3. Admin, Teams, the team view names the files written and says `argocd-agent` has no
+3. Admin, Teams, the team view names the files written and says `agent2` has no
    directory yet.
-4. Choose `argocd-agent`'s directory: its files appear.
+4. Choose `agent2`'s directory: its files appear.
 5. **Start shift**: every terminal opens and connects with no further step.
 6. End the shift, delete one `.mcp.json`, reload from disk: it is not recreated.
+7. Add `examples/team-charters/team1` itself and select it: its agents' directories are
+   the two under `sandbox/example-workdirs/team1`, resolved from the relative paths in
+   its `workdirs.local.yml`, and both hold the three files.
 
 ## Memory
 
@@ -1039,13 +1047,19 @@ Manual. This changes your apps and login items.
     In Chrome **Add to Dock** opens the install dialog; Safari names File, Add to Dock;
     "not now" hides the banner in that browser. A message held at the gate shows as a
     badge on the Dock icon and as a number beside the menu bar icon.
-11. **Uninstall.** The menu's **Uninstall...** asks, then: step 1 prints one line per
-    registered agent, `<name>: files taken out of <dir>`; the directory holds no
-    courtyard entry in `.mcp.json` and no `start-with-courtyard.sh`, and the charter
-    directory is untouched. The app, its settings, logs and login item are gone, the
-    containers are down, `.venv` is gone, the icon is gone. `.env` and the data volume
-    stay; `make run` still works from the directory and the agents are still on the
-    Agents page, where **edit**, **save** connects a directory again. `make uninstall`
-    from the terminal does the same and asks a running app to quit first; with Docker
-    stopped, step 1 says the hub could not be started and names the
-    `courtyard-invite ... --disconnect` command instead.
+11. **Uninstall.** With the WebUI open, the menu's **Uninstall...** asks, then asks
+    "Also delete the database?"; **Keep the data**. It shows "Uninstalling Courtyard"
+    with a bar that advances over the four steps and ends on "Uninstalled"; no spinning
+    cursor. `app.log` has step 1's lines, one per registered agent, `<name>: files taken
+    out of <dir>`; the directory holds no courtyard entry in `.mcp.json` and no
+    `start-with-courtyard.sh`, and the charter directory is untouched. The WebUI shows
+    "Courtyard is uninstalled. Close this window." and never says "reconnecting". The
+    app, its settings, logs and login item are gone, the containers are down, `.venv` is
+    gone, the icon is gone. `.env` and the data volume stay; `make run` still works from
+    the directory and the agents are still on the Agents page, where **edit**, **save**
+    connects a directory again. Install again, Uninstall with **Delete the data**: step 3
+    reads "containers and the data volume", `docker volume ls` shows no courtyard volume,
+    and the next install starts with no team. `make uninstall` from the terminal does the
+    same and asks a running app to quit first; with Docker stopped, step 1 says the hub
+    could not be started and names the `courtyard-invite ... --disconnect` command
+    instead.
