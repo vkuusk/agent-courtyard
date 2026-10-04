@@ -322,8 +322,8 @@ export function Admin() {
         <dt>address</dt><dd>${location.origin}</dd>
         ${config ? Object.entries(config).map(([k, v]) => html`<dt>${k}</dt><dd>${String(v)}</dd>`) : null}
         <dt>supervisor</dt><dd>${config?.supervised
-          ? html`launchd (starts at login, restarts on exit) <${RestartButton} />`
-          : html`none <span class="small muted">· started by hand (make run); \`make install\` runs it at login</span>`}</dd>
+          ? html`the Courtyard app (restarts on exit) <${RestartButton} />`
+          : html`none <span class="small muted">· started by hand (make run or make hub-start); \`make install\` puts it under the app</span>`}</dd>
         <dt>API reference</dt><dd><a href="/api/docs" target="_blank" rel="noopener">${location.origin}/api/docs</a>
           <span class="small muted">· every route, try it out against this hub</span></dd>
         <dt>database browser</dt><dd><code>make db-ui</code>

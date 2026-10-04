@@ -1,4 +1,4 @@
-.PHONY: run run-chrome run-stop check test test-comms lint fmt db-up db-ui db-down db-nuke install uninstall hub-start hub-stop hub-restart hub-status hub-open tray zip-package
+.PHONY: run run-chrome run-stop check test test-comms lint fmt db-up db-ui db-down db-nuke install uninstall hub-start hub-stop hub-restart hub-status hub-open zip-package
 
 # local overrides (copied from .env.default; gitignored); exported so the hub,
 # tests and compose all see the same values
@@ -60,31 +60,28 @@ db-down:        ## stop containers (data volume survives)
 db-nuke:        ## stop containers and DELETE the postgres data volume
 	docker compose --profile tools down -v
 
-# ---- the hub as a macOS app: a LaunchAgent that runs at login (scripts/install.py) -------
+# ---- the Courtyard app: the menu bar app that runs the hub (scripts/install.py) ----------
 
-install:        ## install the hub as a LaunchAgent: venv, .env, postgres image, start at login
-	python3 scripts/install.py install
+install:        ## venv, .env, postgres image, a trial start, the app (APP="Courtyard Dev": a named app; KEEP_HUB=1: no question)
+	python3 scripts/install.py install $(if $(APP),--app "$(APP)")
 
-uninstall:      ## remove both LaunchAgents and the Admin app, stop containers, drop .venv (PURGE=1: also the data volume)
+uninstall:      ## take the courtyard files out of the agents' directories, remove the app, stop containers, drop .venv (PURGE=1: also the data volume)
 	python3 scripts/install.py uninstall $(if $(filter 1,$(PURGE)),--purge)
 
-hub-start:      ## load the LaunchAgent (the hub starts, and again at every login)
+hub-start:      ## start the hub: through the app when it runs, else detached with a pid file
 	python3 scripts/install.py start
 
-hub-stop:       ## unload the LaunchAgent (the hub stays down until hub-start)
+hub-stop:       ## stop the hub (postgres stays up)
 	python3 scripts/install.py stop
 
-hub-restart:    ## restart the hub under launchd
+hub-restart:    ## restart the hub
 	python3 scripts/install.py restart
 
-hub-status:     ## is the LaunchAgent loaded, is the hub answering
+hub-status:     ## the app, the supervisor, the hub, the shift, the gate
 	python3 scripts/install.py status
 
 hub-open:       ## open the WebUI as its own window: the Dock app, else Chrome app mode, else the browser
 	python3 scripts/install.py open
-
-tray:           ## run the menu bar app by hand (make install runs it at login)
-	uv run courtyard-tray
 
 zip-package:    ## zip the committed tree for `unzip; make install` -> ./courtyard-<version>.zip
 	@v=$$(git describe --tags --always --dirty); \

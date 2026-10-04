@@ -489,6 +489,12 @@ Manual, which opens real windows:
    to "checking..." and fresh windows open.
 4. Admin, Team: `Always on` is disabled. The terminal application survives a hub restart.
 5. Quit Terminal.app, Start shift with N agents down: exactly N windows, no empty one.
+6. Admin, Teams: load a charter whose agents have no directory on this machine yet (a
+   copy of `examples/team-charters/team1` without its `workdirs.local.yml`), make it
+   current. Every card's foot reads "no project directory yet" and clicking it opens that
+   agent's edit form on the Agents page. **▶ Start shift** is refused with the agents'
+   names; the pill stays at Start. Choose one agent's directory: Start shift opens that
+   one window and the red note beside the pill names the others.
 
 Nothing the shift did not open is ever closed, and a running agent is never started twice.
 
@@ -670,7 +676,7 @@ Manual, on a fresh hub:
 3. Admin, Teams: the current team's remove button is disabled, and the pulldown has no
    empty choice.
 4. Add a directory that holds a charter, such as a copy of
-   `examples/team-charters/aws-devops`, and select it: its agents appear, and an agent of
+   `examples/team-charters/team1`, and select it: its agents appear, and an agent of
    no other team is adopted into it.
 
 ### Registering, reloading, selecting
@@ -746,17 +752,19 @@ Agents already registered are never rewritten by a reload. Script checkpoints 6 
 
 Manual, on a fresh hub:
 
-1. Copy `examples/team-charters/aws-devops`. Make two empty directories and write
-   `workdirs.local.yml` beside the copy's `team-definition.yml`, mapping `infra-agent` and
-   `tf-developer` to them. Leave `argocd-agent` out.
-2. Courtyard page, **browse**, pick the copy. Three agents appear. Both directories hold
+1. Copy `examples/team-charters/team1`. Make one empty directory and rewrite the copy's
+   `workdirs.local.yml` to map `agent1` to it; leave `agent2` out.
+2. Courtyard page, **browse**, pick the copy. Two agents appear. The directory holds
    `.mcp.json` (`-rw-------`), `.claude/settings.local.json` and
    `start-with-courtyard.sh`, with the token of the agent's launch config.
-3. Admin, Teams, the team view names the files written and says `argocd-agent` has no
+3. Admin, Teams, the team view names the files written and says `agent2` has no
    directory yet.
-4. Choose `argocd-agent`'s directory: its files appear.
+4. Choose `agent2`'s directory: its files appear.
 5. **Start shift**: every terminal opens and connects with no further step.
 6. End the shift, delete one `.mcp.json`, reload from disk: it is not recreated.
+7. Add `examples/team-charters/team1` itself and select it: its agents' directories are
+   the two under `sandbox/example-workdirs/team1`, resolved from the relative paths in
+   its `workdirs.local.yml`, and both hold the three files.
 
 ## Memory
 
@@ -969,20 +977,27 @@ Manual, with two checkouts on one machine:
 
 ### The hub as a macOS app
 
-*Needs: the tests; the manual steps change this machine's login items.*
+*Needs: the tests; `scripts/verify/app/app_lifecycle.py` needs swiftc and Docker; the
+manual steps change this machine's apps and login items.*
 
-`make install` builds `.venv`, creates `.env`, brings postgres up, writes and loads two
-LaunchAgents (`com.courtyard.hub`, `com.courtyard.tray`) and `~/Applications/Courtyard
-Admin.app`. `scripts/hub-launch.sh` loads `.env`, waits for Docker, brings postgres up and
-starts the hub. `make hub-start|stop|restart|status|open` drive it; `make uninstall`
-reverses it. `install.sh` checks the prerequisites, downloads the newest release into the
-current empty directory and runs `make install`.
+`make install` builds `.venv`, creates `.env`, brings postgres up, does a trial start of
+the hub, builds `~/Applications/Courtyard.app` from `app/` (Swift, `app/build.sh`),
+writes its config and asks whether to keep the hub running. The app starts the hub as
+its child through `scripts/hub-launch.sh` and supervises it; `make hub-start|stop|
+restart|status` reach the app over its control socket, or run the hub with a pid file
+when no app runs. `make uninstall` reverses it. `install.sh` checks the prerequisites,
+downloads the newest release into the current empty directory and runs the install.
 
 ```sh
-uv run pytest tests/test_install_app.py tests/test_tray.py tests/test_health.py -q
+uv run pytest tests/test_install_app.py tests/test_shift.py tests/test_health.py -q
+uv run python scripts/verify/app/app_lifecycle.py   # builds the app, drives it in a scratch home
 ```
 
-Manual. This changes your login items.
+The script builds the bundle, runs it with a scratch `HOME` pointed at this directory,
+and over the socket: status, a bad command, start (the hub answers and says it is
+supervised), stop, quit (`docker compose down`, the socket gone, the app exited).
+
+Manual. This changes your apps and login items.
 
 1. **The one command.** In an empty directory, the `curl ... install.sh | sh` line prints
    `downloading Agent Courtyard v...`, `unpacked into ...`, then six install steps. A
@@ -994,32 +1009,57 @@ Manual. This changes your login items.
 2. **The database.** Step 3 names the compose project and port and says `fresh courtyard
    database` or `EXISTING courtyard database found and used: N agent(s), ...`. A database
    holding other tables makes the hub refuse to start.
-3. **make install.** Stop any `make run` hub first. Six numbered steps, then a `Summary`
-   with one row per step, `- OK` or `- WARNING:` with the warning repeated in full, closed
-   by `no warnings` or `N warning(s), see above`. `make hub-status` says `loaded` and `up`.
-4. **Take-over.** `make install` from a second directory: step 4 says the LaunchAgents ran
-   the hub from the first directory and the summary shows a WARNING. The plist names the
-   second directory; the first directory's files are untouched.
-5. **Restart.** Admin, Status: `supervisor: launchd` with **restart hub**. Press it: the
-   page reloads by itself and the cards turn green at their next heartbeat.
-6. **The Dock.** The install opens the WebUI with "Keep the courtyard in your Dock?". In
-   Chrome **Add to Dock** opens the install dialog; Safari names File, Add to Dock; "not
-   now" hides the banner in that browser. A message held at the gate shows as a badge on
-   the Dock icon.
-7. **Keep alive.** `kill -9 $(pgrep -f .venv/bin/courtyard-hub)`: `make hub-status` says
-   `up` again within about five seconds. `make hub-stop`: `down`. Log out and in: the hub
-   is up.
-8. **The menu bar.** A Courtyard icon and no Dock tile. Its first line reads
-   `hub: up (db ok) · no shift · 0 at the gate`; a held message shows `1` beside the icon.
-   **Stop hub**, **Start hub**, **Start shift**, **End shift** (asks when a conversation
-   is open), **Open WebUI**, **Show hub log** do what they say. **Quit Courtyard Admin**
-   removes the icon and leaves the hub; opening `Courtyard Admin` from Spotlight brings it
-   back; `pkill -f courtyard-tray` brings it back by itself.
-9. **make uninstall.** Step 1 prints one line per registered agent, `<name>: files taken
-   out of <dir>`; the directory holds no courtyard entry in `.mcp.json` and no
-   `start-with-courtyard.sh`, and the charter directory is untouched. Both plists, the
-   menu bar icon and the launcher are gone, the containers are down, `.venv` is gone.
-   `.env` and the data volume stay; `make run` still works from the directory and the
-   agents are still on the Agents page, where **edit**, **save** connects a directory again.
-   With the hub stopped first, step 1 says the hub is not answering and names the
-   `courtyard-invite ... --disconnect` command instead.
+3. **make install.** Stop any `make run` hub first. Six numbered steps; step 4 says `the
+   hub answered at ...`; step 6 asks `Keep the hub running? [y/N]`. Then a `Summary` with
+   one row per step, `- OK` or `- WARNING:` with the warning repeated in full, closed by
+   `no warnings` or `N warning(s), see above`. The Courtyard icon is in the menu bar;
+   after `N` its first line reads `hub: down` and `make hub-status` says `supervisor :
+   none`, `hub ... down`. A hub on the port from `make run` stops the install at step 4
+   with `already answers`.
+4. **Start hub.** The menu's **Start hub**: within seconds the first line reads
+   `hub: up (db ok) · no shift · 0 at the gate`; `make hub-status` says `supervisor : app`.
+   On a directory on an external drive macOS asks once whether Courtyard may access
+   files on removable volumes; after yes the hub comes up. `make hub-stop` from the
+   terminal: the menu shows `hub: down`, postgres stays up (`docker ps`). `make hub-start`:
+   up again, through the app (`~/Library/Logs/Courtyard/app.log` says `hub started`).
+5. **Restart.** Admin, Status: `supervisor: the Courtyard app (restarts on exit)` with
+   **restart hub**. Press it: the page reloads by itself and the cards turn green at their next
+   heartbeat; `app.log` shows the exit and the start. `kill -9 $(pgrep -f
+   .venv/bin/courtyard-hub)`: `hub: down`, then up again after five seconds.
+6. **Shift and Quit.** **Start shift** opens the agents' terminals; **End shift** asks
+   when a conversation is open. With a shift open, **Quit Courtyard** asks `A shift is
+   open`; Quit ends the shift, leaves the terminal windows open, stops the hub and runs
+   `docker compose down` (`docker ps` shows no postgres). Opening `Courtyard` from
+   Spotlight brings the icon back with `hub: down`.
+7. **Settings and the rest.** **Edit .env** opens `.env` in the text editor (or the app
+   named under Settings) and the menu gains `restart the hub to apply .env`. Settings:
+   "Start the hub when Courtyard starts" on, Quit, reopen: the hub comes up by itself.
+   "Start Courtyard at login" off: the app is gone from System Settings, Login Items;
+   on: back. **About Courtyard** shows the app's and the hub's version and the
+   directory. **Show hub log** opens Console on `hub.log`.
+8. **Login.** Log out and in: the icon is there with a hollow dot, the hub is down, no
+   dialog from Courtyard. (Docker Desktop may ask for an administrator password at boot:
+   its own issue, see the user guide.)
+9. **A named app.** `make install APP="Courtyard Dev"` from a second checkout with its
+   own ports: a second icon, `Courtyard Dev · hub: down` on its first line, its own
+   `~/Library/Application Support/Courtyard Dev/` and logs; both hubs run side by side.
+10. **The Dock.** **Open WebUI** opens the board with "Keep the courtyard in your Dock?".
+    In Chrome **Add to Dock** opens the install dialog; Safari names File, Add to Dock;
+    "not now" hides the banner in that browser. A message held at the gate shows as a
+    badge on the Dock icon and as a number beside the menu bar icon.
+11. **Uninstall.** With the WebUI open, the menu's **Uninstall...** asks, then asks
+    "Also delete the database?"; **Keep the data**. It shows "Uninstalling Courtyard"
+    with a bar that advances over the four steps and ends on "Uninstalled"; no spinning
+    cursor. `app.log` has step 1's lines, one per registered agent, `<name>: files taken
+    out of <dir>`; the directory holds no courtyard entry in `.mcp.json` and no
+    `start-with-courtyard.sh`, and the charter directory is untouched. The WebUI shows
+    "Courtyard is uninstalled. Close this window." and never says "reconnecting". The
+    app, its settings, logs and login item are gone, the containers are down, `.venv` is
+    gone, the icon is gone. `.env` and the data volume stay; `make run` still works from
+    the directory and the agents are still on the Agents page, where **edit**, **save**
+    connects a directory again. Install again, Uninstall with **Delete the data**: step 3
+    reads "containers and the data volume", `docker volume ls` shows no courtyard volume,
+    and the next install starts with no team. `make uninstall` from the terminal does the
+    same and asks a running app to quit first; with Docker stopped, step 1 says the hub
+    could not be started and names the `courtyard-invite ... --disconnect` command
+    instead.

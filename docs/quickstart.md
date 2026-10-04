@@ -15,8 +15,8 @@ There are two ways to install. As an app, from an empty directory:
 curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install.sh | sh
 ```
 
-The hub then starts at login, and **Courtyard Admin** in the menu bar starts, stops and
-restarts it (user guide, Installation). Read the summary the installer prints;
+**Courtyard** in the menu bar then starts, stops and restarts the hub (user guide,
+Installation); the install asks whether to keep the hub running. Read the summary the installer prints;
 a warning there means an earlier install's database was found and is reused.
 
 From a clone, in the foreground:
@@ -235,7 +235,7 @@ empty Courtyard page: the agents are registered anew and their files rewritten
 ### Uninstall everything
 
 ```sh
-make uninstall            # the courtyard files out of every agent's directory, then the LaunchAgents, the Admin app, the containers, .venv
+make uninstall            # the courtyard files out of every agent's directory, then the app, the containers, .venv
 make uninstall PURGE=1    # also the database volume
 ```
 

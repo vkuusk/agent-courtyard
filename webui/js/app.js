@@ -145,6 +145,10 @@ function App() {
   useEffect(() => {
     if (store.ui.page !== current) setUi({ page: current });
   }, [current]);
+  if (store.farewell) {
+    // The uninstall's last word. The page cannot close its own window, so it says so.
+    return html`<div class="farewell"><h1>Courtyard is uninstalled.</h1><p>Close this window.</p></div>`;
+  }
   return html`<div class="app ${store.ui.collapsed ? "collapsed" : ""}">
     <${Rail} current=${current} />
     <div class="main">

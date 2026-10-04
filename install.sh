@@ -5,9 +5,11 @@
 #
 # What it does, in order, and nothing else: checks the prerequisites (macOS, Docker
 # running, Python 3.14), downloads the newest release zip from GitHub, unpacks it into the
-# current directory if that is empty (or into $COURTYARD_DIR), and runs `make install`
-# there, which is the same as unzipping by hand and running it yourself. Prerequisites it
-# finds missing are named with the command that installs them; it never installs them.
+# current directory if that is empty (or into $COURTYARD_DIR), and runs the install there,
+# which is the same as unzipping by hand and running `make install` yourself. Without the
+# Command Line Tools (swiftc) it takes the built Courtyard app from the release instead of
+# building it. Prerequisites it finds missing are named with the command that installs
+# them; it never installs them.
 #
 # Knobs, all optional:
 #   COURTYARD_DIR=<dir>       where to unpack (default: the current directory, must be empty)
@@ -15,6 +17,7 @@
 #   COURTYARD_ZIP=<path|url>  a zip to use instead of downloading (offline, or a checkout's
 #                             `make zip-package` output)
 #   COURTYARD_UNPACK_ONLY=1   stop after unpacking; run `make install` yourself
+#   KEEP_HUB=1|0              answer "Keep the hub running?" without asking
 #
 # Settings for the new .env, so a second, isolated instance is one command (the install
 # writes them into the .env it creates; a .env already in the directory is kept as is,
@@ -35,7 +38,6 @@ die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 [ "$(uname -s)" = "Darwin" ] || die "this installer is for macOS (the hub itself runs anywhere with Docker)"
 command -v curl >/dev/null || die "curl is required"
 command -v unzip >/dev/null || die "unzip is required"
-command -v make >/dev/null || die "make is required: xcode-select --install"
 if ! command -v docker >/dev/null; then
   die "docker is required: install Docker Desktop (https://docker.com) or Colima (brew install colima docker), set it to start at login"
 fi
@@ -95,9 +97,20 @@ if [ "${COURTYARD_UNPACK_ONLY:-}" = "1" ]; then
   exit 0
 fi
 
+# -- the built app, when there is nothing to build it with ----------------------------------
+if ! command -v swiftc >/dev/null 2>&1 && [ "${version:-}" != "" ] && [ "$version" != "main" ]; then
+  app_url="https://github.com/$REPO/releases/download/$version/Courtyard.app.zip"
+  say "no swiftc here: taking the built app from the release"
+  if curl -fsSL "$app_url" -o "$tmp/app.zip"; then
+    unzip -q "$tmp/app.zip" -d "$dir/app"
+  else
+    say "no built app in release $version; the install needs the Command Line Tools (xcode-select --install)"
+  fi
+fi
+
 # -- install ---------------------------------------------------------------------------------
 cd "$dir"
 say ""
-say "running make install in $dir"
+say "running the install in $dir"
 say ""
-exec make install
+exec python3 scripts/install.py install

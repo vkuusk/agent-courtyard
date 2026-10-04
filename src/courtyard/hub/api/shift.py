@@ -44,6 +44,7 @@ def resume(shift: Annotated[ShiftService, Depends(get_shift)]) -> ShiftStatus:
 
 class EndShift(BaseModel):
     force: bool = False  # set after the UI's are-you-sure on mid-conversation lines
+    keep_terminals: bool = False  # close the books, leave the windows (the app's Quit)
 
 
 @router.post("/shift/end")
@@ -51,7 +52,10 @@ def end(
     shift: Annotated[ShiftService, Depends(get_shift)],
     body: EndShift | None = None,
 ) -> ShiftStatus:
-    return shift.end(force=body.force if body else False)
+    return shift.end(
+        force=body.force if body else False,
+        keep_terminals=body.keep_terminals if body else False,
+    )
 
 
 class SettingsPatch(BaseModel):

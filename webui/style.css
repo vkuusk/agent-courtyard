@@ -187,6 +187,8 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .agent .badge ~ .badge { margin-left: .35rem; }
 .agent .foot { color: var(--muted); font-size: .78rem; margin-top: .2rem; }
 .agent .foot.warn { color: var(--red); }
+.shift-note { font-size: .78rem; color: var(--red); text-decoration: none; }
+.shift-note:hover { text-decoration: underline; }
 /* item 34: the delivery-check control — a small button (his call: visibly clickable),
    green check once verified */
 .agent .check { margin-left: auto; font-size: .72rem; color: var(--muted);
@@ -405,3 +407,8 @@ pre.cmd { background: var(--code-bg); color: var(--code-fg); border-radius: 9px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .18); transition: opacity .3s; }
 .toast.error { background: var(--red); color: #fff; }
 .toast.gone { opacity: 0; }
+
+/* the hub's last word (uninstall): one big message, nothing to interact with */
+.farewell { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .5rem; }
+.farewell h1 { font-size: 2rem; margin: 0; }
+.farewell p { font-size: 1.25rem; color: var(--muted); margin: 0; }

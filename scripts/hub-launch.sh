@@ -1,10 +1,8 @@
 #!/bin/sh
-# The LaunchAgent's program (scripts/install.py writes the plist that runs this).
-# launchd starts with an almost empty environment, so: a PATH that finds docker and
-# homebrew, this directory as cwd, the .env values, postgres up, then the hub itself
-# from the project's own .venv (no uv needed at runtime). Exits are restarts: launchd
-# has KeepAlive, so a crash, a `make hub-restart` or the Admin page's restart button
-# all end here again a few seconds later.
+# Starts the hub: the Courtyard app runs this as its child, `make hub-start` without the
+# app runs it detached. A PATH that finds docker and homebrew (the app's environment is
+# nearly empty), this directory as cwd, the .env values, postgres up, then the hub itself
+# from the project's own .venv (no uv needed at runtime).
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -16,8 +14,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-# Docker may still be starting at login: wait for it rather than fail (launchd would
-# only restart us into the same wait).
+# Docker may still be starting (a start at login): wait for it rather than fail.
 until docker info >/dev/null 2>&1; do
   echo "$(date '+%H:%M:%S') waiting for docker..."
   sleep 5

@@ -1,7 +1,8 @@
 # A GitHub Release for every version tag: the install zip as a fixed-name asset, so
 # `releases/latest/download/courtyard.zip` always is the newest version, plus the
-# versioned name and generated notes. install.sh downloads the tag's zip; this makes the
-# version visible and gives it a page.
+# versioned name, the built Courtyard app (for installs without the Command Line Tools)
+# and generated notes. install.sh downloads the tag's zip; this makes the version
+# visible and gives it a page.
 #
 # The version lives in pyproject.toml and, copied, in uv.lock; the tag must match it, and
 # both files must move together (a hand edit of pyproject.toml leaves uv.lock behind
@@ -28,7 +29,25 @@ permissions:
   contents: write
 
 jobs:
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build Courtyard.app
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          sh app/build.sh build/Courtyard.app com.courtyard.app Courtyard "$version"
+          ditto -c -k --keepParent build/Courtyard.app Courtyard.app.zip
+          ls -la Courtyard.app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Courtyard.app
+          path: Courtyard.app.zip
+
   release:
+    needs: app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -41,11 +60,15 @@ jobs:
           cp courtyard-*.zip courtyard.zip
           ls -la courtyard*.zip
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: Courtyard.app
+
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            courtyard.zip courtyard-*.zip \
+            courtyard.zip courtyard-*.zip Courtyard.app.zip \
             --title "Agent Courtyard ${GITHUB_REF_NAME}" \
             --generate-notes

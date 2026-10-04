@@ -167,6 +167,12 @@ class NoShiftToResume(DomainError):
     code = "no_shift"
 
 
+class NoTargets(DomainError):
+    """Start shift refused: the launchable agents all lack a project directory."""
+
+    code = "no_targets"
+
+
 class InvalidSetting(DomainError):
     code = "invalid_setting"
     http_status = 422

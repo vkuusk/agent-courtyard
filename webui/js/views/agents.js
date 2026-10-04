@@ -496,6 +496,12 @@ export function Agents() {
     .filter((a) => !a.removed_at)
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const sel = store.ui.selected;
+  useEffect(() => {
+    // sent here by a card's "no project directory yet": straight into that agent's edit
+    const wanted = store.ui.editAgent && store.agents.get(store.ui.editAgent);
+    store.ui.editAgent = null;
+    if (wanted) setPanel({ agent: wanted, edit: true });
+  }, []);
 
   const open = async (agent) => {
     try {

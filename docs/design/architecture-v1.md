@@ -872,6 +872,10 @@ What **Start shift** does, in order:
 1. **Target set** = every registered agent whose type has a launch profile. v1 that is
    `claude-code`; `human` is the operator; `dummy` agents are skipped and their cards
    simply stay as they are (a dummy is a test twin — started by whoever is testing).
+   An agent of a launchable type without a project directory on this machine is skipped
+   too, its card says so, and when that leaves no target at all (a charter just loaded,
+   no directories chosen yet) Start shift is refused (`no_targets`, naming the agents)
+   instead of opening an empty shift.
    The launch profile (§3) is the per-adapter seam: the shift never knows how a
    Claude Code agent starts; it asks the agent's adapter type for a profile —
    for `claude-code`: *terminal window, `cd <workdir>`, the launch command already shown
@@ -1114,8 +1118,8 @@ docker-compose.yml
   adminer:    profile "tools", on demand (make db-ui)
 
 dev_mode:   make run       # postgres up, the hub from the working tree, Ctrl+C ends it
-installed:  make install   # the same hub from .venv under a LaunchAgent (D38): starts
-                           # at login, restarts on exit, the menu bar app beside it
+installed:  make install   # the same hub from .venv, started and supervised by the
+                           # Courtyard app in the menu bar (§9.5)
 ```
 
 The hub is never a container: it runs on the host, where the spawner opens the
@@ -1124,6 +1128,107 @@ same program with the same `.env`. Both bind `127.0.0.1` only. One machine, one
 courtyard database: every checkout and install shares the compose project
 `courtyard`; a second, isolated instance sets `COURTYARD_COMPOSE_PROJECT` with its own
 ports.
+
+### 9.5 The Courtyard app
+
+**Courtyard** is the macOS menu bar app that controls one courtyard directory: it starts,
+stops and supervises the hub, starts and ends the shift, and opens the WebUI. It is an
+accessory (menu bar icon, no Dock tile) at `~/Applications/Courtyard.app`. The app holds
+no courtyard logic: every action runs a `scripts/install.py` command in the courtyard
+directory or calls the hub's API, and the menu shows what they report. The app is Swift
+(AppKit), a few hundred lines in `app/`, built by `swiftc` from the Command Line Tools
+that `make` already needs; a release carries the built bundle for installs without them.
+The hub, `scripts/install.py` and `scripts/hub-launch.sh` are the same on Linux; the app
+is the macOS layer only.
+
+**Configuration.** `~/Library/Application Support/Courtyard/config.json` holds the
+courtyard directory and the app's settings: start the hub when the app starts (off by
+default), start the app at login (a Login Item, on by default), the editor for `.env`
+(default: the system's text editor). Ports, the compose project and the hub's own
+settings stay in the directory's `.env`. Logs: `~/Library/Logs/Courtyard/hub.log` and
+`app.log`.
+
+An install names its instance: `make install` installs **Courtyard**; `make install
+APP="Courtyard Dev"` installs a second app with its own bundle id, config directory,
+socket and name in the menu, so a development checkout and the day-to-day install run
+side by side, each with its own `.env` ports.
+
+**The hub's lifetime.** The hub is a child process of the app, and the app is its
+supervisor. Start hub runs `scripts/hub-launch.sh` in the courtyard directory (it waits
+for Docker, brings the compose postgres up and execs `.venv/bin/courtyard-hub`) with
+`COURTYARD_SUPERVISED=courtyard-app`, which is what lets the hub accept
+`POST /api/hub/restart`: the hub ends itself and the app starts it again. An exit the
+operator did not ask for is restarted the same way, after five seconds. Stop hub ends the
+hub and leaves postgres running. Quit ends the hub and runs `docker compose down`
+(containers removed, the data volume kept). Quit during a shift asks the question End
+shift asks, then ends the shift with the terminal windows left open: the books are
+closed, the agents in those windows have no hub until the next start. A logout or a crash
+of the app skips `compose down`; the container stays until Docker stops, and the next
+Start hub finds it running.
+
+The hub runs as a child of the app because macOS grants access to removable volumes
+per application, and the grant covers the application's child processes. A launchd job
+has no application identity to grant, so a courtyard directory on an external drive is
+unreachable from a LaunchAgent. The first Start hub on such a directory shows macOS's
+question once; nothing else in the install touches permissions.
+
+**One set of commands.** `make hub-start | hub-stop | hub-restart | hub-status` run
+`scripts/install.py <command>`, and so does the app's menu. When the app is running, the
+command reaches it over `~/Library/Application Support/Courtyard/control.sock`
+(`start`, `stop`, `restart`, `status`, `quit`), so a hub started from the terminal is
+the app's hub. Without the app, the same command starts the launcher itself and records
+its pid in `sandbox/`; stop and status work from that pid. That mode has no restart on
+exit and no menu, and it is the Linux mode. Development needs no install: `uv sync`, a
+`.env`, Docker running, then `make hub-start`.
+
+**The menu.**
+
+```
+hub: up (db ok) · no shift · 0 at the gate     the state line (instance name first when
+                                               the app is not named Courtyard)
+Open WebUI
+Start hub / Stop hub / Restart hub             Start when down, Stop and Restart when up
+Start shift / End shift
+Show hub log                                   Console on ~/Library/Logs/Courtyard/hub.log
+Edit .env                                      the editor from Settings; the hub reads .env
+                                               at start, the state line says so after a save
+Settings...                                    start the hub with the app, start at login,
+                                               editor, the courtyard directory
+About Courtyard                                app version, hub version, directory, address
+Quit Courtyard
+```
+
+Beside the icon: the number of messages waiting at the gate, a hollow dot when the hub
+is down.
+
+**Install and uninstall.** `make install` (scripts/install.py, standard library only):
+
+1. the hub's environment (`uv sync`)
+2. local settings (`.env` from `.env.default` when missing)
+3. postgres: the image, `docker compose up`, the database report
+4. a trial start: postgres up, the hub up, `/api/health` answers, both down again; the
+   `.env` is wrong when this fails, and nothing is left running
+5. the app: built from `app/`, written to `~/Applications`, its config, the Login Item
+6. the question "Keep the hub running?" read from the terminal (`KEEP_HUB=1` answers it
+   for scripted installs), then the app is launched; yes means the app starts the hub
+
+It ends with the summary block, one line per step. `install.sh` (`curl | sh`) checks
+the prerequisites, downloads the newest release into an empty directory and runs
+`scripts/install.py` directly; without the Command Line Tools it takes the app bundle
+from the release instead of building it.
+
+`make uninstall` is one Python command, and the menu's Uninstall runs the same one:
+start the hub when it is down (Docker permitting; otherwise the per-agent
+`courtyard-invite --disconnect` command is printed), take the courtyard files out of
+every agent's directory, tell every open WebUI (`POST /api/hub/farewell`, one SSE event;
+the page shows "Courtyard is uninstalled. Close this window." and stops reconnecting),
+end the hub and `docker compose down`, remove the Login Item,
+the config directory, the logs and the app bundle, delete `.venv`. A running app is
+asked to quit first over the socket; from the menu the app quits last. The data volume,
+the registrations, the charter and `.env` stay; `PURGE=1` removes the volume and the
+images too, which the menu offers as a second question before it starts. From the menu, a
+window with a four-step bar follows the script's numbered steps; the quit it asks for over the socket stops the hub and postgres and leaves the
+app running until the script is done.
 
 ## 10. WebUI
 
@@ -1267,6 +1372,7 @@ agent-courtyard/
 │       ├── pi/                     # the pi extension template (extension.ts), rendered by install
 │       └── dummy/                  # fake agent (echo / script / manual), the contract's reference
 ├── webui/                          # static: index.html, style.css, js/ (Preact + htm ES modules), vendor/ (one file)
+├── app/                            # the Courtyard menu bar app (Swift, §9.5): Sources/, build.sh
 ├── scripts/                        # demo scenarios (e.g. two-dummies-conversation)
 └── tests/                          # pytest: unit (core) + integration (hub+dummies over HTTP)
 ```

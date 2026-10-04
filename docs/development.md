@@ -48,9 +48,11 @@ one. A second instance needs its own compose project, postgres port and hub port
 1. Work on a branch and open a pull request to `main`.
 2. `make check` is green.
 3. A change to observable behaviour ships its manual test procedure (next section).
-4. A design change starts from the decision log in
-   [`design/architecture-v1.md`](design/architecture-v1.md): read the entries it touches.
+4. A design change starts from the design documents in [`design/`](design/): read the
+   sections it touches. They describe the design as it is, without decision records.
 5. Docs never use the em dash character and are written in a plain technical register.
+6. Code comments are short: what it is and how to use it, a non-obvious reason in one line
+   (with a link when there is one). The full story belongs in `docs/`.
 
 ## Testing
 
@@ -117,9 +119,10 @@ never runs a mix of old and new modules.
 ## Releasing
 
 A release is a git tag `v<version>` on `main`. The workflow
-`.github/workflows/release.yml` builds the install zip and publishes a GitHub Release with
-it, as `courtyard.zip` and under the versioned name. `install.sh` downloads the newest
-release.
+`.github/workflows/release.yml` builds the install zip and the Courtyard app (on a macOS
+runner, `app/build.sh`) and publishes a GitHub Release with them: `courtyard.zip`, the
+versioned zip and `Courtyard.app.zip`, the built app for installs without the Command
+Line Tools. `install.sh` downloads the newest release.
 
 The version is in `pyproject.toml` and in `uv.lock`, and the tag must match both. Let uv
 move them; a hand edit of `pyproject.toml` leaves `uv.lock` behind.
@@ -141,5 +144,5 @@ move them; a hand edit of `pyproject.toml` leaves `uv.lock` behind.
    git tag v0.2.0 && git push --tags
    ```
 
-4. Check the release page: both zips attached. `curl -fsSL .../install.sh | sh` in an
-   empty directory is the end-to-end check.
+4. Check the release page: the two zips and `Courtyard.app.zip` attached.
+   `curl -fsSL .../install.sh | sh` in an empty directory is the end-to-end check.
