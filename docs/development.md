@@ -48,9 +48,11 @@ one. A second instance needs its own compose project, postgres port and hub port
 1. Work on a branch and open a pull request to `main`.
 2. `make check` is green.
 3. A change to observable behaviour ships its manual test procedure (next section).
-4. A design change starts from the decision log in
-   [`design/architecture-v1.md`](design/architecture-v1.md): read the entries it touches.
+4. A design change starts from the design documents in [`design/`](design/): read the
+   sections it touches. They describe the design as it is, without decision records.
 5. Docs never use the em dash character and are written in a plain technical register.
+6. Code comments are short: what it is and how to use it, a non-obvious reason in one line
+   (with a link when there is one). The full story belongs in `docs/`.
 
 ## Testing
 

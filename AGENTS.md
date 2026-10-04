@@ -144,8 +144,10 @@ the full walkthrough with every screen described, and at
 - Every completed feature ships a manual verification procedure in
   `docs/testing.md` plus a durable script in `scripts/verify/<area>/`;
   conventions live in `docs/development.md`.
-- The design document (`docs/design/architecture-v1.md`) records
-  every decision with its reasons in a decision log; read the relevant entries
-  before proposing a design change.
+- The design documents (`docs/design/`) describe the design as it is; read
+  the relevant sections before proposing a design change. They state behavior
+  as fact: no decision records, no history of how a choice came about.
 - User-facing docs (README, `docs/`) never use the em dash character; write in
   a plain, honest technical register.
+- Code comments are short: what it is and how to use it, a non-obvious reason in
+  one line (with a link when there is one). The full story belongs in `docs/`.
