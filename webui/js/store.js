@@ -130,11 +130,27 @@ export function agentName(id) {
 
 const RANK = { connected: 0, stale: 1, invited: 2, gone: 3 };
 
-// The current team: every registered, non-removed agent except you — reachable first.
+// The current team (team-charter.md): the agents its charter names, non-removed, except
+// you — reachable first. Agents of other registered teams stay in `store.agents` for the
+// Agents page and are invisible here.
 export function teamAgents() {
   return [...store.agents.values()]
-    .filter((a) => !a.removed_at && a.type !== "human")
+    .filter((a) => !a.removed_at && a.type !== "human" && a.on_team)
     .sort((a, b) => RANK[a.status] - RANK[b.status] || a.name.localeCompare(b.name));
+}
+
+export function onTeam(agentId) {
+  return store.agents.get(agentId)?.on_team ?? false;
+}
+
+// A line of the current team: both ends on it (the operator always is).
+export function isTeamLine(line) {
+  return onTeam(line.agent_a) && onTeam(line.agent_b);
+}
+
+// The current team's gate: a message held between agents of another team waits unseen.
+export function teamPending() {
+  return [...store.pending.values()].filter((m) => onTeam(m.sender) && onTeam(m.recipient));
 }
 
 export function isOperatorLine(line) {
@@ -171,7 +187,8 @@ export function selectedAgent() {
   const s = store.ui.selected;
   if (s?.kind !== "agent") return null;
   const agent = store.agents.get(s.id);
-  return agent && !agent.removed_at ? agent : null;
+  // an agent that left the team (another team became current) is no selection either
+  return agent && !agent.removed_at && agent.on_team ? agent : null;
 }
 
 function ensureSelection() {
@@ -234,7 +251,9 @@ export function hasNewActivity(line) {
 
 export function totalUnread() {
   let n = 0;
-  for (const line of store.lines.values()) if (isOperatorLine(line)) n += unreadOnLine(line.id);
+  for (const line of store.lines.values()) {
+    if (isOperatorLine(line) && isTeamLine(line)) n += unreadOnLine(line.id);
+  }
   return n;
 }
 

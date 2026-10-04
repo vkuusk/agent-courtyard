@@ -267,6 +267,49 @@ try:
     admin.remove_team(fresh.id)  # a non-current team goes; its files stay
     print(f"after remove      : {[t.name for t in admin.teams()]} registered")
     print(f"files stayed      : {(empty / 'team-definition.yml').is_file()}")
+
+    hr("12. THE CURRENT TEAM IS THE COURTYARD: THE OTHER TEAM IS OUT OF SIGHT")
+    infra_client = HubClient(HUB, "infra", admin.token_of("infra"))
+    pair = next(
+        li for li in admin.lines() if {li.agent_a_name, li.agent_b_name} == {"infra", "scribe"}
+    )
+    admin.set_mode(pair.id, "supervised")
+    held = infra_client.send("scribe", "held at the gate")
+    print(f"infra -> scribe   : {held.status} (the demo-devops gate holds one message)")
+    example = Path(__file__).resolve().parents[3] / "examples" / "team-charters" / "team1"
+    team1_dir = scratch / "team1"
+    shutil.copytree(example, team1_dir)
+    (team1_dir / "workdirs.local.yml").unlink()
+    team1 = admin.add_team(str(team1_dir))
+    admin.set_current_team(team1.id)
+    agents = {a.name: a for a in admin.agents()}
+    print(
+        "on the team       :",
+        sorted(n for n, a in agents.items() if a.on_team and a.type != "human"),
+    )
+    print(
+        "off the team      :",
+        {n: a.team for n, a in agents.items() if not a.on_team and a.removed_at is None},
+    )
+    agent1 = HubClient(HUB, "agent1", admin.token_of("agent1"))
+    print(f"agent1's roster   : {[p.name for p in agent1.peers().peers]}")
+    try:
+        agent1.send("infra", "hello over there")
+        print("BUG: a send across teams went through")
+    except HubError as exc:
+        print(f"agent1 -> infra   : {exc.code} — {exc}")
+    try:
+        infra_client.send("scribe", "still here?")
+        print("BUG: an agent of another team could send")
+    except HubError as exc:
+        print(f"infra -> scribe   : {exc.code} — {exc}")
+    print(f"gate, team1       : {len(admin.pending())} held (demo-devops's message waits unseen)")
+    admin.set_current_team(team.id)
+    print(f"gate, demo-devops : {len(admin.pending())} held again")
+    agents = {a.name: a for a in admin.agents()}
+    print(f"agent1 now        : on_team={agents['agent1'].on_team}, team={agents['agent1'].team!r}")
+    agent1.close()
+    infra_client.close()
 finally:
     admin.close()
     hub.terminate()

@@ -180,6 +180,15 @@ Several charters can be registered on one hub; exactly one is current. The curre
 cannot be removed; select another one first. Choosing a team on a hub that already holds
 agents adopts those agents into the charter as cards.
 
+The current team is the courtyard. The Courtyard page, its lines, the shift, the gate
+and every agent's peer list cover the current team's agents only; an agent is told who
+its teammates are and nothing more, and a message to anyone else is refused as unknown.
+Agents of the other registered teams keep their registrations, tokens, lines, history
+and gate messages, and are out of sight until their team is selected again; the Agents
+page lists them all with their team. A session of such an agent that is still running
+is not disconnected: its messages are refused until its team is current again. An agent
+named by several charters belongs to whichever of its teams is current.
+
 ### Agents
 
 **Adding an agent.** On the **Agents** page, **+ Add an agent**:

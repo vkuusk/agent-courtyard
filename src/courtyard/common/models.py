@@ -63,6 +63,10 @@ class Agent(BaseModel):
     # the workdir's files predate a database rebuild or a token rotation. Hub memory only
     # (the adapter retries every 2 s); cleared by an attach with the right token.
     token_rejected_at: datetime | None = None
+    # derived from the registered charters, never stored (team-charter.md): the team that
+    # names this agent, and whether that is the current team
+    team: str | None = None
+    on_team: bool = True
 
 
 class Thread(BaseModel):

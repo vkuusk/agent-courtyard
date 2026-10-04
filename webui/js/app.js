@@ -3,7 +3,7 @@
 // Hash router: #/board (default) · #/agents · #/archive · #/memory · #/admin.
 
 import { html, render, useEffect, useState } from "../vendor/htm-preact-standalone.module.js";
-import { store, connectEvents, refreshSnapshot, setUi, setTheme, effectiveTheme, totalUnread } from "./store.js";
+import { store, connectEvents, refreshSnapshot, setUi, setTheme, effectiveTheme, totalUnread, teamPending } from "./store.js";
 import { useStore, Icon } from "./ui.js";
 import { Composer } from "./composer.js";
 import { Board } from "./views/board.js";
@@ -130,7 +130,7 @@ function App() {
   const hash = useHash();
   const current = PAGES[hash.split("/")[1]] ? hash.split("/")[1] : "board";
   const { view: View } = PAGES[current];
-  const attention = store.pending.size + totalUnread();
+  const attention = teamPending().length + totalUnread();
   useEffect(() => {
     document.title = attention ? `(${attention}) Agent Courtyard` : "Agent Courtyard";
     // Installed as a Dock app (Add to Dock / Install app), the badge is the same count

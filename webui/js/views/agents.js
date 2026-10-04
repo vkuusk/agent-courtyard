@@ -479,7 +479,7 @@ function UnregisterDialog({ agent, onClose }) {
   </div>`;
 }
 
-const HEADERS = ["agent", "type", "description", "owns", "status", "last seen", "actions"];
+const HEADERS = ["agent", "type", "team", "description", "owns", "status", "last seen", "actions"];
 
 export function Agents() {
   useStore();
@@ -578,12 +578,14 @@ export function Agents() {
     <table>
       <thead><tr>${HEADERS.map((h) => html`<th>${h}</th>`)}</tr></thead>
       <tbody>${agents.map((a) => {
-        const pickable = a.type !== "human";
+        // an agent of another team is registered, editable, and off the board
+        const pickable = a.type !== "human" && a.on_team;
         const selected = sel?.kind === "agent" && sel.id === a.id;
-        return html`<tr key=${a.id} class="${pickable ? "pick" : ""} ${selected ? "selected" : ""}"
+        return html`<tr key=${a.id} class="${pickable ? "pick" : ""} ${selected ? "selected" : ""} ${a.on_team ? "" : "off-team"}"
             onClick=${pickable ? () => select({ kind: "agent", id: a.id }) : null}>
           <td><span class="dot ${a.status}" /><span class="name chip" data-color=${a.color}>${a.name}</span></td>
           <td class="muted">${a.type}</td>
+          <td class="muted small">${a.type === "human" ? "" : a.on_team ? a.team ?? "current" : html`${a.team ?? "none"} <span title="not the current team: off the board until its team is selected">· not current</span>`}</td>
           <td class="muted">${a.description ?? ""}</td>
           <td class="muted">${a.sme_domain ?? ""}</td>
           <td class="muted small">${a.status}</td>

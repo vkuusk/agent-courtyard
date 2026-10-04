@@ -766,6 +766,27 @@ Manual, on a fresh hub:
    the two under `sandbox/example-workdirs/team1`, resolved from the relative paths in
    its `workdirs.local.yml`, and both hold the three files.
 
+### The current team is the courtyard
+
+*Needs: the script and a browser; step 3 uses a running agent.*
+
+With a second team selected, the first team's agents are registered but off the team:
+not on the board, not in any roster, unreachable by name, their gate messages unseen.
+Script checkpoint 12. Design: team-charter.md, "The current team is the courtyard".
+
+Manual, with a team whose agents have talked:
+
+1. Admin, Teams: add a second charter (a copy of `examples/team-charters/team1`) and
+   select it. The Courtyard page shows that team's agents only, the Lines panel only
+   their lines, and the badge counts only their gate messages; the first team's held
+   messages are gone from the gate. The Agents page lists every agent with its team,
+   the first team's rows dimmed and marked `not current`, their **edit** still working.
+2. Send from the operator to one of the first team's agents by name: refused as unknown.
+3. In a running session of a first team agent, send to its own teammate: the refusal says
+   its team is not the current one. Ask it for its peers: an empty list.
+4. Select the first team again: its cards, lines and gate messages are back, and the
+   second team's agents are the dimmed rows now.
+
 ## Memory
 
 ### The case file and recall

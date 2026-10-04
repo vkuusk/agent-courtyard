@@ -155,6 +155,12 @@ class InvalidToken(DomainError):
     http_status = 401
 
 
+class NotOnTeam(DomainError):
+    """A sender outside the current team: its team is not the courtyard right now."""
+
+    code = "not_on_team"
+
+
 class ShiftBusy(DomainError):
     """End shift refused: lines are mid-conversation (the UI confirms, then forces)."""
 

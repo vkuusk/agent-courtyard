@@ -5,7 +5,7 @@
 
 import { html, useEffect, useState } from "../../vendor/htm-preact-standalone.module.js";
 import { api } from "../api.js";
-import { store, isInactive, setTheme, effectiveTheme, applySettings, applyTeams } from "../store.js";
+import { teamPending, store, isInactive, setTheme, effectiveTheme, applySettings, applyTeams } from "../store.js";
 import { useStore } from "../ui.js";
 import { DirPicker } from "./agents.js";
 
@@ -333,7 +333,7 @@ export function Admin() {
       <dl class="kv">
         <dt>agents</dt><dd>${registered} registered</dd>
         <dt>lines</dt><dd>${lines.length - inactive} active · ${inactive} inactive</dd>
-        <dt>held at the gate</dt><dd>${store.pending.size}</dd>
+        <dt>held at the gate</dt><dd>${teamPending().length}</dd>
       </dl></div>
     <${TeamsSection} />
     <${SettingsSection} />
