@@ -759,6 +759,7 @@ def test_release_workflow_publishes_the_zip_package_and_the_app():
 # -- the app bundle ----------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="AppKit: the app builds on macOS only")
 @pytest.mark.skipif(shutil.which("swiftc") is None, reason="swiftc (Command Line Tools) missing")
 def test_the_app_builds_into_a_signed_bundle_with_the_instance_name(tmp_path):
     """app/build.sh: a bundle whose Info.plist carries the instance's id and name, the
