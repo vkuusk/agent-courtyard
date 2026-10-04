@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
-"""Install the courtyard hub as a macOS LaunchAgent, and take it out again.
+"""Install courtyard as a macOS app, and the commands the app and `make hub-*` share.
 
 Standard library only, so it runs with whatever `python3` the machine has before the
-project's own environment exists. Everything it changes outside this directory is two
-files under `~/Library/LaunchAgents`: `com.courtyard.hub.plist` and `com.courtyard.tray.plist`
-(the menu bar app, "Courtyard Admin"), plus `~/Applications/Courtyard Admin.app`, a launcher
-that brings the menu bar app back after its Quit (find it in Spotlight or any launcher).
-Inside it: `.venv`, `.env` (copied from `.env.default` if missing),
-`sandbox/hub.log` and `sandbox/tray.log`. Docker gets the postgres image and a volume named
-`courtyard_courtyard-pgdata` (the compose project is named `courtyard`, so every checkout
-and install on the machine shares one database). The install ends with a summary of every
-step, warnings repeated in full.
+project's own environment exists.
 
-    make install                # venv, .env, postgres image, LaunchAgent; the hub is up
+    make install                       # venv, .env, postgres image, a trial start, the app
+    make install APP="Courtyard Dev"   # a second, named app for another directory
     make hub-start | hub-stop | hub-restart | hub-status | hub-open
-    make uninstall              # LaunchAgent gone, containers down, .venv gone; data kept
-    make uninstall PURGE=1      # ... and the postgres volume and image removed too
-
-Under launchd the hub starts at login and comes back if it dies (KeepAlive). Stop means
-unload: the hub stays down until `make hub-start` or the next `make install`.
+    make uninstall                     # app, .venv and containers gone; data kept
+    make uninstall PURGE=1             # ... and the postgres volume and image removed too
 """
 
 from __future__ import annotations
@@ -26,8 +16,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import plistlib
+import re
 import shutil
+import signal
+import socket
 import subprocess
 import sys
 import time
@@ -35,23 +27,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from xml.sax.saxutils import escape as xml_escape
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = "com.courtyard.hub"
-PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
-TEMPLATE = ROOT / "scripts" / "launchd" / f"{LABEL}.plist.template"
 LAUNCHER = ROOT / "scripts" / "hub-launch.sh"
-LOG = ROOT / "sandbox" / "hub.log"
-# the menu bar app (courtyard-tray): its own LaunchAgent, so it is there when the hub is not
-TRAY_LABEL = "com.courtyard.tray"
-TRAY_PLIST = PLIST.parent / f"{TRAY_LABEL}.plist"
-TRAY_TEMPLATE = TEMPLATE.parent / f"{TRAY_LABEL}.plist.template"
-TRAY_LOG = ROOT / "sandbox" / "tray.log"
-# the launcher app: "Courtyard Admin" in Spotlight brings the menu bar app back after Quit
-ADMIN_APP = Path.home() / "Applications" / "Courtyard Admin.app"
-ICON_PNG = ROOT / "webui" / "icons" / "icon-512.png"
+APP_SRC = ROOT / "app"
+PREBUILT_APP = APP_SRC / "Courtyard.app"  # unpacked from a release by install.sh
+SANDBOX = ROOT / "sandbox"
+INSTANCE_FILE = SANDBOX / "app-instance"  # the name of the app that controls this directory
+PID_FILE = SANDBOX / "hub.pid"  # the hub started without the app (make hub-start, Linux)
+PID_LOG = SANDBOX / "hub.log"
+DEFAULT_APP = "Courtyard"
 REQUIRED_PYTHON = (3, 14)
 
 
@@ -60,9 +47,6 @@ def say(text: str) -> None:
 
 
 # -- the install summary: every step's verdict, warnings repeated in full at the end ------------
-# The steps print as they run; a summary block after the last one repeats each step's status
-# so that a warning printed halfway (an existing database, a LaunchAgent taken over from another
-# directory) is not lost above a screen of pip output.
 
 STEPS: list[tuple[str, str, list[str]]] = []  # (label, "OK" | "WARNING", detail lines)
 
@@ -95,10 +79,6 @@ def sh(
     return subprocess.run(cmd, check=check, text=True, **kw)
 
 
-def domain() -> str:
-    return f"gui/{os.getuid()}"
-
-
 def read_env() -> dict[str, str]:
     """The few `.env` values this script needs; a missing file means the defaults."""
     values: dict[str, str] = {}
@@ -116,6 +96,292 @@ def read_env() -> dict[str, str]:
 def hub_url() -> str:
     return f"http://127.0.0.1:{read_env().get('COURTYARD_PORT', '2626')}"
 
+
+def project_version() -> str:
+    match = re.search(
+        r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.MULTILINE
+    )
+    return match.group(1) if match else "?"
+
+
+# -- the app instance: one app per courtyard directory, named at install ------------------------
+
+
+def slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+@dataclass(frozen=True)
+class Instance:
+    """Where a named app and its files live. "Courtyard" is the default; another name
+    gives a second app (its own bundle id, config, socket, logs) for another directory."""
+
+    name: str = DEFAULT_APP
+    home: Path = field(default_factory=Path.home)
+
+    @property
+    def bundle_id(self) -> str:
+        base = "com.courtyard.app"
+        return base if self.name == DEFAULT_APP else f"{base}.{slug(self.name)}"
+
+    @property
+    def app(self) -> Path:
+        return self.home / "Applications" / f"{self.name}.app"
+
+    @property
+    def support(self) -> Path:
+        return self.home / "Library" / "Application Support" / self.name
+
+    @property
+    def config(self) -> Path:
+        return self.support / "config.json"
+
+    @property
+    def socket(self) -> Path:
+        return self.support / "control.sock"
+
+    @property
+    def logs(self) -> Path:
+        return self.home / "Library" / "Logs" / self.name
+
+    @property
+    def hub_log(self) -> Path:
+        return self.logs / "hub.log"
+
+
+def instance(name: str | None = None) -> Instance:
+    if name:
+        return Instance(name)
+    if INSTANCE_FILE.exists():
+        return Instance(INSTANCE_FILE.read_text().strip() or DEFAULT_APP)
+    return Instance()
+
+
+def render_config(
+    inst: Instance,
+    root: Path = ROOT,
+    start_hub_with_app: bool = False,
+    start_at_login: bool = True,
+    editor: str | None = None,
+) -> dict:
+    return {
+        "directory": str(root),
+        "start_hub_with_app": start_hub_with_app,
+        "start_at_login": start_at_login,
+        "editor": editor,
+        "bundle_id": inst.bundle_id,
+        "name": inst.name,
+    }
+
+
+def read_config(inst: Instance) -> dict:
+    try:
+        return json.loads(inst.config.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+# -- the app over its control socket -----------------------------------------------------------
+
+
+def app_call(inst: Instance, command: str, timeout: float = 5.0, **args) -> dict | None:
+    """One JSON line to the running app, one back; None when no app answers."""
+    if not inst.socket.exists():
+        return None
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect(str(inst.socket))
+            s.sendall(json.dumps({"command": command, **args}).encode() + b"\n")
+            buf = b""
+            while not buf.endswith(b"\n"):
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+        return json.loads(buf) if buf.strip() else None
+    except (OSError, ValueError):
+        return None
+
+
+def app_owns_this_directory(inst: Instance) -> bool:
+    """The running app controls THIS directory (not another checkout's)."""
+    reply = app_call(inst, "status")
+    if not reply:
+        return False
+    try:
+        return Path(reply.get("directory", "")).resolve() == ROOT.resolve()
+    except OSError:
+        return False
+
+
+def wait_for_app(inst: Instance, seconds: float = 20.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if app_call(inst, "status"):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+# -- the hub without the app: a pid file (make hub-start before an install, Linux) --------------
+
+
+def pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def read_pid(pid_file: Path = PID_FILE) -> int | None:
+    try:
+        pid = int(pid_file.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    if pid_running(pid):
+        return pid
+    pid_file.unlink(missing_ok=True)
+    return None
+
+
+def pid_start(
+    launcher: Path = LAUNCHER, log: Path = PID_LOG, pid_file: Path = PID_FILE, cwd: Path = ROOT
+) -> int:
+    """Start the launcher detached; it execs the hub, so the pid stays the hub's."""
+    log.parent.mkdir(parents=True, exist_ok=True)
+    launcher.chmod(0o755)
+    env = {k: v for k, v in os.environ.items() if k != "COURTYARD_SUPERVISED"}
+    with open(log, "ab") as out:
+        proc = subprocess.Popen(
+            ["/bin/sh", str(launcher)],
+            cwd=cwd,
+            stdout=out,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=env,
+        )
+    pid_file.write_text(f"{proc.pid}\n")
+    return proc.pid
+
+
+def _reap(pid: int) -> None:
+    """Collect the exit of a child of this process (a trial start); not ours: nothing."""
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        pass
+
+
+def pid_stop(pid_file: Path = PID_FILE, grace: float = 10.0) -> bool:
+    """SIGTERM to the hub's process group, SIGKILL after the grace period."""
+    pid = read_pid(pid_file)
+    if pid is None:
+        return False
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 2.0)):
+        try:
+            os.killpg(pid, sig)
+        except PermissionError:
+            os.kill(pid, sig)  # a group member we may not signal: the hub itself will do
+        except ProcessLookupError:
+            break
+        deadline = time.monotonic() + wait
+        _reap(pid)
+        while time.monotonic() < deadline and pid_running(pid):
+            time.sleep(0.2)
+            _reap(pid)
+        if not pid_running(pid):
+            break
+    pid_file.unlink(missing_ok=True)
+    return True
+
+
+# -- the hub's API ---------------------------------------------------------------------------
+
+
+def health(url: str, timeout: float = 2.0) -> dict | None:
+    try:
+        with urllib.request.urlopen(url + "/api/health", timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def get_json(path: str, timeout: float = 2.0):
+    with urllib.request.urlopen(hub_url() + path, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def post_json(path: str, body: dict | None = None, timeout: float = 30.0):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        hub_url() + path,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json"} if data else {},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+        return json.loads(raw) if raw else None
+
+
+def _error_code(exc: urllib.error.HTTPError) -> str:
+    """The hub's error code out of an HTTP error body, or the status when there is none."""
+    try:
+        return json.loads(exc.read())["error"]["code"]
+    except (ValueError, KeyError, TypeError, OSError):
+        return str(exc.code)
+
+
+def wait_for_hub(seconds: float = 60.0) -> dict | None:
+    url = hub_url()
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        report = health(url)
+        if report:
+            return report
+        time.sleep(1.0)
+    return None
+
+
+def wait_for_hub_down(seconds: float = 15.0) -> bool:
+    url = hub_url()
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if health(url) is None:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def hub_is_supervised(url: str, timeout: float = 2.0) -> bool | None:
+    """Is the hub on `url` a supervised one (the app's), or some other hub on the same
+    port? None when nothing answers."""
+    try:
+        with urllib.request.urlopen(url + "/api/config", timeout=timeout) as resp:
+            return bool(json.loads(resp.read()).get("supervised"))
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def refuse_a_hub_already_on_the_port() -> None:
+    """A hub that already answers on the port (a `make run` in some terminal, another
+    directory's app) would make ours fail to bind; say so and stop instead."""
+    url = hub_url()
+    if health(url) is None:
+        return
+    sys.exit(
+        f"a hub already answers at {url} (a `make run` ends with Ctrl+C, `make run-chrome`"
+        " with `make run-stop`, an app's hub with its Stop hub). Stop it, or give this"
+        " directory its own COURTYARD_PORT in .env, then run make install again."
+    )
+
+
+# -- the WebUI -------------------------------------------------------------------------------
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # where browsers put the WebUI once it is added to the Dock (Chrome, Safari)
@@ -149,45 +415,19 @@ def open_webui() -> None:
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def health(url: str, timeout: float = 2.0) -> dict | None:
-    try:
-        with urllib.request.urlopen(url + "/api/health", timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except (urllib.error.URLError, OSError, ValueError):
-        return None
+def edit_env_command(editor: str | None, env_file: Path = ROOT / ".env") -> list[str]:
+    """The editor from the app's settings, else the system's text editor (`open -t`)."""
+    if editor:
+        return ["open", "-a", editor, str(env_file)]
+    return ["open", "-t", str(env_file)]
 
 
-def render_plist(root: Path = ROOT, log: Path = LOG, template: Path = TEMPLATE) -> str:
-    """A LaunchAgent: launchd runs the program in this directory, at login and whenever it
-    exits; launchd's environment is nearly empty, so PATH is set explicitly."""
-    # the paths land inside <string> elements: an `&` or `<` in a checkout path (a
-    # directory named "R&D") would leave launchd an unparseable plist
-    return (
-        template.read_text()
-        .replace("{{ROOT}}", xml_escape(str(root)))
-        .replace("{{LAUNCHER}}", xml_escape(str(root / "scripts" / "hub-launch.sh")))
-        .replace("{{LOG}}", xml_escape(str(log)))
-    )
-
-
-def loaded(label: str = LABEL) -> bool:
-    return (
-        subprocess.run(
-            ["launchctl", "print", f"{domain()}/{label}"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).returncode
-        == 0
-    )
-
-
-# -- steps -------------------------------------------------------------------------------
+# -- install steps ---------------------------------------------------------------------------
 
 
 def check_prerequisites() -> None:
     if sys.platform != "darwin":
-        sys.exit("the LaunchAgent install is macOS only (the hub itself runs anywhere with Docker)")
+        sys.exit("the app install is macOS only (the hub itself runs anywhere with Docker)")
     if shutil.which("docker") is None:
         sys.exit(
             "docker is not on PATH: install Docker Desktop or Colima, set it to start at login"
@@ -219,8 +459,6 @@ def python_for_venv() -> str:
 def make_venv() -> None:
     say("1. the hub's environment (.venv)")
     if shutil.which("uv"):
-        # dev tools included so a clone stays a working checkout (the menu bar app's
-        # dependency is a normal one, so any later `uv sync` keeps it)
         sh(["uv", "sync"], cwd=ROOT)
     else:
         python = python_for_venv()
@@ -265,9 +503,8 @@ def render_env(template: str, values: dict[str, str]) -> str:
 
 def unquote_env_from_dotenv() -> None:
     """`make` exports every .env line as it is, so a value written as KEY="x" reaches
-    docker compose and the hub as `"x"` with the quotes (seen live: container name
-    `"vvk-courtyard"-postgres`). The .env file is the truth for this directory: put
-    its values, unquoted, into the environment before anything runs."""
+    docker compose and the hub as `"x"` with the quotes. The .env file is the truth for
+    this directory: put its values, unquoted, into the environment before anything runs."""
     os.environ.update(read_env())
 
 
@@ -356,6 +593,14 @@ def describe_database(agents: int, messages: int, memory: int, teams: str) -> st
     )
 
 
+EXISTING_DATABASE_ADVICE = [
+    "One machine, one courtyard database, by design: every checkout and install",
+    "shares it. To start from nothing instead: `make db-nuke` here (deletes it),",
+    "or give this install its own COURTYARD_COMPOSE_PROJECT, COURTYARD_PG_PORT and",
+    "COURTYARD_PORT in .env, then run `make install` again.",
+]
+
+
 def prepare_postgres() -> None:
     say(
         f"3. postgres (docker compose project {project()!r}, host port"
@@ -373,224 +618,281 @@ def prepare_postgres() -> None:
         record("postgres")
 
 
-EXISTING_DATABASE_ADVICE = [
-    "One machine, one courtyard database, by design: every checkout and install",
-    "shares it. To start from nothing instead: `make db-nuke` here (deletes it),",
-    "or give this install its own COURTYARD_COMPOSE_PROJECT, COURTYARD_PG_PORT and",
-    "COURTYARD_PORT in .env, then run `make install` again.",
-]
+def compose_down(purge: bool = False) -> None:
+    cmd = ["docker", "compose", "--profile", "tools", "down"]
+    if purge:
+        cmd.append("-v")
+    sh(cmd, cwd=ROOT, check=False)
 
 
-def previous_root(plist: Path = PLIST) -> Path | None:
-    """The directory an already installed LaunchAgent runs from, if there is one and it is
-    not this directory: this install is about to take the hub over from it."""
-    if not plist.exists():
+def trial_start() -> None:
+    """Prove the .env: postgres up, the hub up and answering, both down again."""
+    say("4. a trial start of the hub (then stopped)")
+    refuse_a_hub_already_on_the_port()
+    pid_start()
+    report = wait_for_hub()
+    url = hub_url()
+    pid_stop()
+    wait_for_hub_down()
+    compose_down()
+    if not report:
+        sys.exit(f"the hub did not answer at {url} within a minute; see {PID_LOG}")
+    say(f"  the hub answered at {url} (status {report.get('status')}, db {report.get('db')})")
+    record("a trial start of the hub", details=["the hub started and was stopped again"])
+
+
+def previous_directory(inst: Instance) -> Path | None:
+    """The directory the app of this name already controls, when it is another one."""
+    directory = read_config(inst).get("directory")
+    if not directory or Path(directory).resolve() == ROOT.resolve():
         return None
-    try:
-        root = plistlib.loads(plist.read_bytes()).get("WorkingDirectory")
-    except (plistlib.InvalidFileException, ValueError):
-        return None
-    if not root or Path(root).resolve() == ROOT.resolve():
-        return None
-    return Path(root)
+    return Path(directory)
 
 
-def takeover_warning(old_root: Path) -> list[str]:
+def takeover_warning(name: str, old_root: Path) -> list[str]:
     return [
-        f"the LaunchAgents already existed and ran the hub from {old_root};",
-        "this directory takes them over: the hub and the menu bar app now start from here,",
-        "that directory no longer starts anything at login (its files are untouched).",
-        "Both share the same database, by design.",
+        f"{name} already existed and controlled {old_root};",
+        "it now controls this directory instead (that directory's files are untouched).",
+        "Both share the same database unless their .env files say otherwise.",
     ]
 
 
-def write_agent() -> None:
-    say("4. the LaunchAgents (the hub, and the menu bar app) and the Courtyard Admin launcher")
-    old_root = previous_root()
-    if old_root:
-        for line in takeover_warning(old_root):
-            say("  " + line)
-        record("the LaunchAgents and Courtyard Admin.app", "WARNING", takeover_warning(old_root))
-    else:
-        record("the LaunchAgents and Courtyard Admin.app")
-    PLIST.parent.mkdir(parents=True, exist_ok=True)
-    LOG.parent.mkdir(parents=True, exist_ok=True)
-    PLIST.write_text(render_plist())
-    TRAY_PLIST.write_text(render_plist(log=TRAY_LOG, template=TRAY_TEMPLATE))
-    LAUNCHER.chmod(0o755)
-    for plist in (PLIST, TRAY_PLIST):
-        sh(["plutil", "-lint", str(plist)], quiet=True, capture_output=True)
-        say(f"  wrote {plist}")
-    write_admin_app()
-    say(f"  wrote {ADMIN_APP} (Spotlight: Courtyard Admin, brings the menu bar app back)")
-
-
-def admin_launcher_script(label: str = TRAY_LABEL, plist: Path = TRAY_PLIST) -> str:
-    return f"""#!/bin/sh
-# Courtyard Admin: brings the Courtyard menu bar app back after "Quit Courtyard Admin".
-# Written by scripts/install.py (make install); make uninstall removes it.
-plist="{plist}"
-domain="gui/$(id -u)"
-if [ ! -f "$plist" ]; then
-  osascript -e 'display alert "Courtyard is not installed" message "Run make install in the courtyard directory first."' >/dev/null
-  exit 1
-fi
-if launchctl print "$domain/{label}" >/dev/null 2>&1; then
-  launchctl kickstart "$domain/{label}"
-else
-  launchctl bootstrap "$domain" "$plist"
-fi
-"""
-
-
-def build_icns(png: Path, icns: Path) -> bool:
-    """An .icns from the WebUI's 512px icon with macOS's own tools; False where they are
-    missing (the bundle then has no icon, nothing else changes)."""
-    if not png.exists() or not (shutil.which("sips") and shutil.which("iconutil")):
-        return False
-    iconset = icns.with_suffix(".iconset")
-    shutil.rmtree(iconset, ignore_errors=True)
-    iconset.mkdir(parents=True)
-    for size in (16, 32, 128, 256, 512):
-        out = iconset / f"icon_{size}x{size}.png"
-        subprocess.run(
-            ["sips", "-z", str(size), str(size), str(png), "--out", str(out)],
-            capture_output=True,
-            check=False,
+def build_app(inst: Instance) -> Path:
+    """The app bundle in ~/Applications: built from app/ by swiftc, or the release's
+    prebuilt bundle (default name only) when the Command Line Tools are missing."""
+    inst.app.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.which("swiftc"):
+        sh(
+            [
+                "/bin/sh",
+                str(APP_SRC / "build.sh"),
+                str(inst.app),
+                inst.bundle_id,
+                inst.name,
+                project_version(),
+            ],
+            cwd=ROOT,
         )
-        if size > 16:
-            shutil.copy(out, iconset / f"icon_{size // 2}x{size // 2}@2x.png")
-    ok = subprocess.run(
-        ["iconutil", "-c", "icns", str(iconset), "-o", str(icns)], capture_output=True, check=False
-    )
-    shutil.rmtree(iconset, ignore_errors=True)
-    return ok.returncode == 0 and icns.exists()
-
-
-def write_admin_app(app: Path = ADMIN_APP, icon_png: Path = ICON_PNG) -> Path:
-    """A minimal .app bundle (no code signing needed: a shell script) so Spotlight, the
-    Dock or any launcher can bring the menu bar app back. LSUIElement keeps the launcher
-    itself out of the Dock while it runs for its fraction of a second."""
-    shutil.rmtree(app, ignore_errors=True)
-    (app / "Contents" / "MacOS").mkdir(parents=True)
-    (app / "Contents" / "Resources").mkdir()
-    exe = app / "Contents" / "MacOS" / "Courtyard Admin"
-    exe.write_text(admin_launcher_script())
-    exe.chmod(0o755)
-    info = {
-        "CFBundleName": "Courtyard Admin",
-        "CFBundleDisplayName": "Courtyard Admin",
-        "CFBundleIdentifier": "com.courtyard.admin",
-        "CFBundleExecutable": "Courtyard Admin",
-        "CFBundlePackageType": "APPL",
-        "CFBundleShortVersionString": "1.0",
-        "LSUIElement": True,
-    }
-    if build_icns(icon_png, app / "Contents" / "Resources" / "Courtyard.icns"):
-        info["CFBundleIconFile"] = "Courtyard"
-    (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
-    return app
-
-
-def load_agent(label: str = LABEL, plist: Path = PLIST) -> None:
-    if loaded(label):
-        sh(["launchctl", "bootout", f"{domain()}/{label}"], check=False, capture_output=True)
-        time.sleep(1)
-    sh(["launchctl", "bootstrap", domain(), str(plist)])
-    sh(["launchctl", "kickstart", "-k", f"{domain()}/{label}"], check=False, capture_output=True)
-
-
-def wait_for_hub(seconds: float = 60.0) -> dict | None:
-    url = hub_url()
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        report = health(url)
-        if report:
-            return report
-        time.sleep(1.0)
-    return None
-
-
-def hub_is_supervised(url: str, timeout: float = 2.0) -> bool | None:
-    """Is the hub answering on `url` the LaunchAgent's (COURTYARD_SUPERVISED set by the
-    plist), or some other hub on the same port? None when nothing answers."""
-    try:
-        with urllib.request.urlopen(url + "/api/config", timeout=timeout) as resp:
-            return bool(json.loads(resp.read()).get("supervised"))
-    except (urllib.error.URLError, OSError, ValueError):
-        return None
-
-
-def refuse_a_hub_already_on_the_port() -> None:
-    """Before the LaunchAgent is loaded: a hub that already answers on the port (a `make
-    run` in some terminal, an older install from another directory still loaded) would
-    make the new one fail to bind, exit, and be restarted by KeepAlive every few seconds,
-    while this install reported the OTHER hub as "up". Say so and stop instead."""
-    url = hub_url()
-    if health(url) is None:
-        return
-    if hub_is_supervised(url):
-        return  # the previous install's hub: load_agent() replaces it in place
+        return inst.app
+    if PREBUILT_APP.exists():
+        if inst.name != DEFAULT_APP:
+            sys.exit(
+                f"a named app ({inst.name}) needs swiftc to build; install the Command Line"
+                " Tools (xcode-select --install) or use the default name"
+            )
+        shutil.rmtree(inst.app, ignore_errors=True)
+        shutil.copytree(PREBUILT_APP, inst.app, symlinks=True)
+        return inst.app
     sys.exit(
-        f"a hub already answers at {url} and it is not the LaunchAgent's (started by hand:"
-        " `make run` ends with Ctrl+C, `make run-chrome` with `make run-stop`). Stop it,"
-        " or give this install its own COURTYARD_PORT in .env, then run make install again."
+        "swiftc not found: install the Command Line Tools (xcode-select --install), or use"
+        " install.sh, which brings the built app from the release"
     )
 
 
-def install() -> None:
+def write_app(inst: Instance) -> None:
+    say(f"5. the app: ~/Applications/{inst.name}.app, its settings and the login item")
+    old_root = previous_directory(inst)
+    if old_root:
+        for line in takeover_warning(inst.name, old_root):
+            say("  " + line)
+        record("the app", "WARNING", takeover_warning(inst.name, old_root))
+    else:
+        record("the app")
+    if app_call(inst, "status") is not None:
+        app_call(inst, "quit", timeout=30.0)
+        time.sleep(1)
+    build_app(inst)
+    inst.support.mkdir(parents=True, exist_ok=True)
+    inst.logs.mkdir(parents=True, exist_ok=True)
+    kept = read_config(inst)
+    inst.config.write_text(
+        json.dumps(
+            render_config(
+                inst,
+                start_hub_with_app=bool(kept.get("start_hub_with_app", False)),
+                start_at_login=bool(kept.get("start_at_login", True)),
+                editor=kept.get("editor"),
+            ),
+            indent=2,
+        )
+        + "\n"
+    )
+    SANDBOX.mkdir(parents=True, exist_ok=True)
+    INSTANCE_FILE.write_text(inst.name + "\n")
+    say(f"  wrote {inst.app}")
+    say(f"  wrote {inst.config} (the app starts at login; the hub starts from its menu)")
+
+
+def ask_keep_hub() -> bool:
+    """The one question of the install, read from the terminal (stdin may be the script
+    under `curl | sh`); KEEP_HUB=1 or 0 answers it without asking."""
+    given = os.environ.get("KEEP_HUB", "").strip()
+    if given:
+        return given == "1"
+    try:
+        with open("/dev/tty") as tty:
+            print("  Keep the hub running? [y/N] ", end="", flush=True)
+            return tty.readline().strip().lower() in ("y", "yes")
+    except OSError:
+        return False
+
+
+def launch_app(inst: Instance) -> bool:
+    sh(["open", "-a", str(inst.app)])
+    return wait_for_app(inst)
+
+
+def install(app_name: str | None) -> None:
+    inst = instance(app_name or DEFAULT_APP)
     check_prerequisites()
     make_venv()
     make_env_file()
     prepare_postgres()
-    write_agent()
-    say("5. starting the hub and the menu bar app under launchd")
-    refuse_a_hub_already_on_the_port()
-    load_agent()
-    load_agent(TRAY_LABEL, TRAY_PLIST)
-    report = wait_for_hub()
-    url = hub_url()
-    if not report or not hub_is_supervised(url):
-        # unload again: a hub that cannot start (port taken, a foreign database, a bad
-        # .env) would otherwise be restarted by KeepAlive every few seconds, forever
-        for label in (LABEL, TRAY_LABEL):
-            sh(["launchctl", "bootout", f"{domain()}/{label}"], check=False, capture_output=True)
-        what = "did not answer" if not report else "answers, but it is not the LaunchAgent's"
-        sys.exit(f"the hub {what} at {url} within a minute; see {LOG}. LaunchAgents unloaded.")
-    say(f"  hub up at {url} (status {report.get('status')}, db {report.get('db')})")
-    record("starting the hub and the menu bar app")
-    say("6. opening the WebUI")
-    dock_app = installed_dock_app()
-    if dock_app:
-        # already in the Dock from an earlier install: open that, not a tab beside it
-        say(f"  the Dock app is already installed ({dock_app}); opening it")
-        subprocess.Popen(["open", "-a", str(dock_app)], stdout=subprocess.DEVNULL)
-        record("opening the WebUI", details=["opened the installed Dock app, not the browser"])
+    trial_start()
+    write_app(inst)
+    say("6. starting the app")
+    keep = ask_keep_hub()
+    if not launch_app(inst):
+        record("starting the app", "WARNING", [f"the app did not answer; see {inst.logs}"])
+    elif keep:
+        app_call(inst, "start")
+        report = wait_for_hub()
+        if report:
+            say(f"  hub up at {hub_url()} (status {report.get('status')}, db {report.get('db')})")
+            record("starting the app", details=["the hub is running under the app"])
+        else:
+            record("starting the app", "WARNING", [f"the hub did not answer; see {inst.hub_log}"])
     else:
-        say("  in your browser. It asks whether to keep the courtyard in your Dock: Chrome")
-        say("  installs it from the button, Safari from File > Add to Dock. The Dock icon counts")
-        say("  what waits for you. (Chrome remembers a 'not now' from before; the question is")
-        say("  then gone until the site's data is cleared.)")
-        subprocess.run(
-            ["open", url], check=False
-        )  # a normal window on purpose: the install button lives there
-        record("opening the WebUI")
+        say("  the app is in the menu bar; the hub is down until Start hub")
+        record("starting the app", details=["the hub is down until Start hub"])
     say("")
     say(format_summary(STEPS))
     say("")
-    say("Done. The hub now starts at login and restarts if it dies.")
-    say("The Courtyard icon in the menu bar has the buttons: Open WebUI, Start / Stop /")
-    say("Restart hub, Start / End shift; beside it, the number of messages waiting at the gate.")
-    say(f"Logs: {LOG}, {TRAY_LOG}")
+    say(f"Done. {inst.name} is in the menu bar and starts at login: Open WebUI, Start / Stop /")
+    say("Restart hub, Start / End shift, Show hub log, Edit .env, Settings, About, Quit.")
+    say(f"Logs: {inst.hub_log}")
     say("make hub-status | hub-stop | hub-start | hub-restart | hub-open ; make uninstall")
 
 
-def _error_code(exc: urllib.error.HTTPError) -> str:
-    """The hub's error code out of an HTTP error body, or the status when there is none."""
+# -- the shared commands: the app's menu and make hub-* run these ----------------------------
+
+
+def supervisor(inst: Instance) -> str:
+    """Who runs the hub here: `app`, `pid` (started without the app) or `none`."""
+    if app_owns_this_directory(inst):
+        return "app"
+    if read_pid() is not None:
+        return "pid"
+    return "none"
+
+
+def start() -> None:
+    inst = instance()
+    url = hub_url()
+    if health(url):
+        say(f"the hub is already up at {url}")
+        return
+    if app_owns_this_directory(inst):
+        reply = app_call(inst, "start") or {}
+        if not reply.get("ok", True):
+            sys.exit(f"the app refused: {reply.get('error', 'unknown')}")
+    else:
+        pid_start()
+        say(f"  started without the app (pid {read_pid()}, log {PID_LOG})")
+    report = wait_for_hub()
+    say(f"hub {'up' if report else 'did not answer in time, see the log'} at {url}")
+
+
+def stop() -> None:
+    inst = instance()
+    if app_owns_this_directory(inst):
+        app_call(inst, "stop", timeout=30.0)
+    elif read_pid() is not None:
+        pid_stop()
+    else:
+        other = " (something else answers on the port)" if health(hub_url()) else ""
+        say(f"the hub is not running from here{other}")
+        return
+    say("hub stopped" if wait_for_hub_down() else "the hub did not stop in time")
+
+
+def restart() -> None:
+    inst = instance()
+    if app_owns_this_directory(inst):
+        app_call(inst, "restart", timeout=30.0)
+    else:
+        if read_pid() is not None:
+            pid_stop()
+            wait_for_hub_down()
+            pid_start()
+    report = wait_for_hub()
+    say(f"hub {'up' if report else 'did not answer in time, see the log'} at {hub_url()}")
+
+
+def status_report() -> dict:
+    """Everything the menu shows, in one answer."""
+    inst = instance()
+    url = hub_url()
+    report = {
+        "directory": str(ROOT),
+        "url": url,
+        "app": inst.name,
+        "version": project_version(),
+        "supervisor": supervisor(inst),
+        "hub": "down",
+        "db": None,
+        "shift": "off",
+        "stale": False,
+        "pending": 0,
+    }
+    h = health(url)
+    if not h:
+        return report
+    report["hub"] = "up"
+    report["db"] = h.get("db")
     try:
-        return json.loads(exc.read())["error"]["code"]
-    except (ValueError, KeyError, TypeError, OSError):
-        return str(exc.code)
+        report["pending"] = len(get_json("/api/gate/pending"))
+        shift = get_json("/api/shift")
+        report["shift"] = shift.get("state", "off")
+        report["stale"] = bool(shift.get("stale"))
+    except (urllib.error.URLError, OSError, ValueError, TypeError):
+        pass
+    return report
+
+
+def status(as_json: bool) -> None:
+    report = status_report()
+    if as_json:
+        print(json.dumps(report))
+        return
+    inst = instance()
+    running = "running" if app_call(inst, "status") else "not running"
+    say(f"directory  : {report['directory']}")
+    say(f"app        : {inst.name} ({running})")
+    say(f"supervisor : {report['supervisor']}")
+    up = f"up (db {report['db']})" if report["hub"] == "up" else "down"
+    say(f"hub        : {report['url']} {up}")
+    if report["hub"] == "up":
+        say(f"shift      : {report['shift']}" + (" (nobody home)" if report["stale"] else ""))
+        say(f"gate       : {report['pending']} waiting")
+
+
+def shift_start() -> None:
+    print(json.dumps(post_json("/api/shift/start")))
+
+
+def shift_end(force: bool, keep_terminals: bool) -> None:
+    """Exit 0 with the status, or exit 3 with the hub's error code (`shift_busy` means
+    the caller should ask and retry with --force)."""
+    body = {"force": force, "keep_terminals": keep_terminals}
+    try:
+        print(json.dumps(post_json("/api/shift/end", body)))
+    except urllib.error.HTTPError as exc:
+        print(json.dumps({"error": _error_code(exc)}))
+        sys.exit(3)
+
+
+# -- uninstall ---------------------------------------------------------------------------------
 
 
 def disconnect_agents() -> list[str] | None:
@@ -633,34 +935,62 @@ def disconnect_agents() -> list[str] | None:
     return lines
 
 
+def hub_up_for_uninstall(inst: Instance) -> bool:
+    """The disconnect step needs the hub: start it when it is down (Docker permitting)."""
+    if health(hub_url()):
+        return True
+    if subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0:
+        return False
+    if app_owns_this_directory(inst):
+        app_call(inst, "start")
+    else:
+        try:
+            sh(["docker", "compose", "up", "-d", "--wait", "postgres"], cwd=ROOT, quiet=True)
+            pid_start()
+        except (OSError, subprocess.CalledProcessError):
+            return False
+    return wait_for_hub(90.0) is not None
+
+
+def quit_app(inst: Instance, unregister_login_item: bool = False) -> None:
+    """Ask the app to quit (its hub stops with it); for an uninstall the app also drops
+    its login item first, so it is launched for that when it is not running."""
+    if app_call(inst, "status") is None and unregister_login_item and inst.app.exists():
+        sh(["open", "-a", str(inst.app)], check=False, quiet=True)
+        wait_for_app(inst)
+    if app_call(inst, "status") is not None:
+        app_call(inst, "quit", timeout=30.0, unregister_login_item=unregister_login_item)
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and app_call(inst, "status") is not None:
+            time.sleep(0.5)
+
+
 def uninstall(purge: bool) -> None:
+    inst = instance()
     say("1. the agents' project directories: taking the courtyard files out")
-    outcome = disconnect_agents()
+    outcome = disconnect_agents() if hub_up_for_uninstall(inst) else None
     if outcome is None:
-        say("  the hub is not answering, so no directory was cleaned. Each agent's directory")
-        say("  holds .mcp.json, .claude/settings.local.json and start-with-courtyard.sh; to")
-        say("  clean them: make hub-start, then per agent")
+        say("  the hub could not be started (Docker?), so no directory was cleaned. Each")
+        say("  agent's directory holds .mcp.json, .claude/settings.local.json and")
+        say("  start-with-courtyard.sh; to clean them: make hub-start, then per agent")
         say("  .venv/bin/courtyard-invite --name <agent> --disconnect")
     elif not outcome:
         say("  no registered agent has a project directory")
     else:
         for line in outcome:
             say("  " + line)
-    say("2. the LaunchAgents and the Courtyard Admin launcher")
-    for label, plist in ((TRAY_LABEL, TRAY_PLIST), (LABEL, PLIST)):
-        if loaded(label):
-            sh(["launchctl", "bootout", f"{domain()}/{label}"], check=False)
-        if plist.exists():
-            plist.unlink()
-            say(f"  removed {plist}")
-    if ADMIN_APP.exists():
-        shutil.rmtree(ADMIN_APP, ignore_errors=True)
-        say(f"  removed {ADMIN_APP}")
+    say(f"2. the app ({inst.name}), its login item, settings and logs")
+    quit_app(inst, unregister_login_item=True)
+    if read_pid() is not None:
+        pid_stop()
+    for path in (inst.app, inst.support, inst.logs):
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+            say(f"  removed {path}")
+    INSTANCE_FILE.unlink(missing_ok=True)
+    PID_FILE.unlink(missing_ok=True)
     say("3. containers" + (" and the data volume" if purge else " (data volume kept)"))
-    cmd = ["docker", "compose", "--profile", "tools", "down"]
-    if purge:
-        cmd.append("-v")
-    sh(cmd, cwd=ROOT, check=False)
+    compose_down(purge)
     if purge:
         sh(
             ["docker", "image", "rm", "pgvector/pgvector:pg18", "adminer:latest"],
@@ -671,53 +1001,13 @@ def uninstall(purge: bool) -> None:
     shutil.rmtree(ROOT / ".venv", ignore_errors=True)
     say("")
     say(
-        "Uninstalled. Kept: this directory, .env, sandbox/ logs"
+        "Uninstalled. Kept: this directory, .env, sandbox/"
         + ("" if purge else ", the postgres data volume")
     )
     say("Remove the Dock app by dragging it out of the Dock (Safari) or from chrome://apps.")
-    say("The menu bar icon is gone with its LaunchAgent, and so is the Courtyard Admin launcher.")
 
 
-def status() -> None:
-    url = hub_url()
-    say(f"LaunchAgent : {'loaded' if loaded() else 'not loaded'} ({PLIST})")
-    say(f"menu bar    : {'loaded' if loaded(TRAY_LABEL) else 'not loaded'} ({TRAY_PLIST})")
-    report = health(url)
-    say(f"hub         : {url} " + (f"up (db {report.get('db')})" if report else "down"))
-    if LOG.exists():
-        say(f"log         : {LOG}")
-
-
-def start() -> None:
-    if not PLIST.exists():
-        sys.exit("not installed: run `make install` first")
-    if TRAY_PLIST.exists() and not loaded(TRAY_LABEL):
-        sh(["launchctl", "bootstrap", domain(), str(TRAY_PLIST)])  # back after its Quit
-    if loaded():
-        say("already loaded; use `make hub-restart` to restart it")
-        return
-    sh(["launchctl", "bootstrap", domain(), str(PLIST)])
-    report = wait_for_hub()
-    say(f"hub {'up' if report else 'did not answer in time, see ' + str(LOG)} at {hub_url()}")
-
-
-def stop() -> None:
-    if not loaded():
-        say("not loaded (already stopped)")
-        return
-    sh(["launchctl", "bootout", f"{domain()}/{LABEL}"])
-    say(
-        "hub stopped; `make hub-start` brings it back (and so does the next login after `make install`)"
-    )
-
-
-def restart() -> None:
-    if not loaded():
-        start()
-        return
-    sh(["launchctl", "kickstart", "-k", f"{domain()}/{LABEL}"])
-    report = wait_for_hub()
-    say(f"hub {'up' if report else 'did not answer in time, see ' + str(LOG)} at {hub_url()}")
+# -- main ------------------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -726,24 +1016,30 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("install")
+    inst = sub.add_parser("install")
+    inst.add_argument("--app", default=None, help="the app's name (default: Courtyard)")
     un = sub.add_parser("uninstall")
     un.add_argument(
         "--purge", action="store_true", help="also remove the postgres volume and images"
     )
-    sub.add_parser("status")
+    st = sub.add_parser("status")
+    st.add_argument("--json", action="store_true", help="one JSON object (what the app reads)")
     sub.add_parser("start")
     sub.add_parser("stop")
     sub.add_parser("restart")
     sub.add_parser("open")
-    sub.add_parser("render-plist")
+    sub.add_parser("edit-env")
+    sub.add_parser("shift-start")
+    se = sub.add_parser("shift-end")
+    se.add_argument("--force", action="store_true")
+    se.add_argument("--keep-terminals", action="store_true")
     args = parser.parse_args()
     if args.command == "install":
-        install()
+        install(args.app)
     elif args.command == "uninstall":
         uninstall(args.purge)
     elif args.command == "status":
-        status()
+        status(args.json)
     elif args.command == "start":
         start()
     elif args.command == "stop":
@@ -752,8 +1048,12 @@ def main() -> None:
         restart()
     elif args.command == "open":
         open_webui()
-    elif args.command == "render-plist":
-        print(render_plist(), end="")
+    elif args.command == "edit-env":
+        subprocess.Popen(edit_env_command(read_config(instance()).get("editor")))
+    elif args.command == "shift-start":
+        shift_start()
+    elif args.command == "shift-end":
+        shift_end(args.force, args.keep_terminals)
 
 
 if __name__ == "__main__":

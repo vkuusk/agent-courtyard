@@ -22,3 +22,7 @@ docker-compose.override.yml
 # release zips (make zip-package)
 courtyard-*.zip
 dist/
+
+# the Courtyard app: the release's prebuilt bundle (install.sh) and local builds
+app/Courtyard.app/
+build/

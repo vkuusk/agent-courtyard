@@ -61,8 +61,8 @@ The script names any missing prerequisite with the command that installs it, dow
 latest release and runs `make install`. It ends with a summary of its steps; read any
 warning there.
 
-The hub is installed as a macOS app: it starts at login, and **Courtyard Admin** in the
-menu bar starts, stops and restarts it.
+The hub is installed as a macOS app: **Courtyard** in the menu bar starts, stops and
+restarts it, and runs the shift. The app starts at login; the hub starts from its menu.
 
 `<add-screenshot-with-courtyard-admin-menu>`
 

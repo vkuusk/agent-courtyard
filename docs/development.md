@@ -119,9 +119,10 @@ never runs a mix of old and new modules.
 ## Releasing
 
 A release is a git tag `v<version>` on `main`. The workflow
-`.github/workflows/release.yml` builds the install zip and publishes a GitHub Release with
-it, as `courtyard.zip` and under the versioned name. `install.sh` downloads the newest
-release.
+`.github/workflows/release.yml` builds the install zip and the Courtyard app (on a macOS
+runner, `app/build.sh`) and publishes a GitHub Release with them: `courtyard.zip`, the
+versioned zip and `Courtyard.app.zip`, the built app for installs without the Command
+Line Tools. `install.sh` downloads the newest release.
 
 The version is in `pyproject.toml` and in `uv.lock`, and the tag must match both. Let uv
 move them; a hand edit of `pyproject.toml` leaves `uv.lock` behind.
@@ -143,5 +144,5 @@ move them; a hand edit of `pyproject.toml` leaves `uv.lock` behind.
    git tag v0.2.0 && git push --tags
    ```
 
-4. Check the release page: both zips attached. `curl -fsSL .../install.sh | sh` in an
-   empty directory is the end-to-end check.
+4. Check the release page: the two zips and `Courtyard.app.zip` attached.
+   `curl -fsSL .../install.sh | sh` in an empty directory is the end-to-end check.

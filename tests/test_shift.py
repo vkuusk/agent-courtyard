@@ -230,6 +230,18 @@ class TestShiftMachine:
         assert status.state == "off"
         assert spawner.closed == ["ref-1"]
 
+    def test_end_can_keep_the_terminals_open(self, storage):
+        """The app's Quit: the books close, the windows stay."""
+        clock, spawner = Clock(), FakeSpawner()
+        service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))
+        add_agent(storage, "coder")
+        service.start()
+        clock.tick(21)
+        service.tick()
+        status = service.end(keep_terminals=True)
+        assert status.state == "off"
+        assert spawner.closed == []
+
     def test_end_refuses_while_lines_are_mid_conversation(self, storage):
         clock, spawner = Clock(), FakeSpawner()
         service = make_service(storage, clock, spawner, started_at=T0 - timedelta(hours=1))

@@ -1364,6 +1364,7 @@ agent-courtyard/
 │       ├── pi/                     # the pi extension template (extension.ts), rendered by install
 │       └── dummy/                  # fake agent (echo / script / manual), the contract's reference
 ├── webui/                          # static: index.html, style.css, js/ (Preact + htm ES modules), vendor/ (one file)
+├── app/                            # the Courtyard menu bar app (Swift, §9.5): Sources/, build.sh
 ├── scripts/                        # demo scenarios (e.g. two-dummies-conversation)
 └── tests/                          # pytest: unit (core) + integration (hub+dummies over HTTP)
 ```

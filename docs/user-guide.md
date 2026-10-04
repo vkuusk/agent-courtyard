@@ -21,40 +21,69 @@ curl -fsSL https://raw.githubusercontent.com/vkuusk/agent-courtyard/main/install
 Prerequisites: macOS, Docker (Desktop or Colima) set to start at login, Python 3.14
 (`brew install python@3.14`). The script names what is missing with the command that
 installs it, downloads the newest release into the current directory (which must be
-empty, or hold only a `.env`) and runs `make install`. The same install from a release
-zip or a clone: `cd` in, `make install`.
+empty, or hold only a `.env`) and runs the install. The same install from a release
+zip or a clone: `cd` in, `make install`. `make install` needs the Command Line Tools
+(`xcode-select --install`); the one-command install takes the built app from the
+release when they are missing.
 
-`make install` creates `.venv` and `.env`, pulls the postgres image, and writes three
-things outside the directory: `~/Library/LaunchAgents/com.courtyard.hub.plist` (the hub,
-started at login and restarted if it exits), `com.courtyard.tray.plist` (Courtyard Admin,
-the menu bar app) and `~/Applications/Courtyard Admin.app` (the launcher that brings the
-menu bar app back after Quit). Logs: `sandbox/hub.log`, `sandbox/tray.log`. It ends with
-a Summary, one line per step, OK or WARNING, every warning repeated in full. The two
+`make install` creates `.venv` and `.env`, pulls the postgres image, does a trial start
+of the hub (postgres up, the hub answering, both down again; a wrong `.env` fails here,
+with nothing left running), and writes **Courtyard**, the menu bar app, to
+`~/Applications/Courtyard.app` with its settings in `~/Library/Application
+Support/Courtyard/config.json` and its logs in `~/Library/Logs/Courtyard/`. It then asks
+"Keep the hub running?"; `KEEP_HUB=1` or `0` answers without asking. It ends with a
+Summary, one line per step, OK or WARNING, every warning repeated in full. The two
 warnings it knows: an existing courtyard database on this machine (used as is; the block
-says how to start from nothing) and LaunchAgents that ran the hub from another directory
-(taken over; that directory no longer starts anything at login).
+says how to start from nothing) and an app of that name that controlled another
+directory (it now controls this one).
 
-The install opens the WebUI, which asks once whether to keep the courtyard in your Dock:
-in Chrome the banner's **Add to Dock** opens the install dialog, in Safari the banner
-points at File, Add to Dock. The Dock icon opens the WebUI in its own window and counts
-the messages that wait for you. When the Dock app already exists, the install opens it.
+`make install APP="Courtyard Dev"` installs a second app under that name, with its own
+settings, socket and logs, for another directory: a development checkout beside the
+day-to-day install, each with its own `.env` ports.
 
-**Courtyard Admin**, the icon in the menu bar, has the buttons Open WebUI, Start hub, Stop
-hub, Restart hub, Start shift, End shift, Show hub log, Quit Courtyard Admin. Beside the
-icon: the number of messages waiting at the gate, or a hollow dot when the hub is down.
-It is the one place that starts a hub that is down; the WebUI has no start or stop
-button. Quit takes the icon away until you open **Courtyard Admin** from Spotlight, run
-`make hub-start`, or log in again; quitting never touches the hub.
+**Courtyard**, the icon in the menu bar, starts at login; the hub does not, until you
+choose **Start hub** or turn on "Start the hub when Courtyard starts" in Settings. The
+hub runs as the app's child and is restarted after an exit nobody asked for. **Stop
+hub** ends the hub and leaves postgres running; **Quit** ends the hub and takes postgres
+down (the data stays). Quit during a shift asks the question End shift asks, then ends
+the shift and leaves the agents' terminal windows open, without a hub. The menu:
+
+| item | what it does |
+|---|---|
+| the first line | `hub: up (db ok) · no shift · 0 at the gate`, or `hub: down`; a named app shows its name first |
+| **Open WebUI** | the board as its own window: the Dock app if you added one, else Chrome in app mode, else the default browser |
+| **Start hub**, **Stop hub**, **Restart hub** | the hub under the app; the Admin page's **restart hub** does the same from the WebUI |
+| **Start shift**, **End shift** | the shift (End shift asks when a conversation is open) |
+| **Show hub log** | `~/Library/Logs/Courtyard/hub.log` in Console |
+| **Edit .env** | `.env` in the editor from Settings, else the system's text editor; the hub reads `.env` at start, so restart it after a save |
+| **Settings...** | start the hub with the app, start the app at login, the editor, the courtyard directory |
+| **About Courtyard** | the app's and the hub's version, the directory, the hub's address |
+| **Uninstall...** | `make uninstall`, then the app removes itself |
+| **Quit Courtyard** | ends the hub and postgres; the app is back at the next login |
+
+Beside the icon: the number of messages waiting at the gate, or a hollow dot when the
+hub is down. The WebUI has no start or stop button.
+
+The first **Start hub** on a directory on an external drive shows macOS's question
+whether Courtyard may access files on removable volumes; answer yes once. When the hub
+starts at login, Docker Desktop may ask for an administrator password at boot: Docker
+checks for `/var/run/docker.sock` before its own boot helper has created it
+([docker/desktop-feedback#698](https://github.com/docker/desktop-feedback/issues/698));
+Allow and Don't Allow both leave Docker working.
+
+The same commands from the terminal; with the app running they go through it, so a hub
+started with `make hub-start` is the app's hub. Without the app (no install, or Linux)
+`make hub-start` runs the hub by itself, with a pid file in `sandbox/` and the log in
+`sandbox/hub.log`; nothing restarts it then.
 
 | command | what it does |
 |---|---|
-| `make hub-status` | are the LaunchAgents loaded, is the hub answering |
-| `make hub-stop` | unload: the hub stays down until `hub-start` |
-| `make hub-start` | load: the hub starts, and again at every login |
-| `make hub-restart` | restart under launchd; the Admin page's **restart hub** does the same from the WebUI |
-| `make hub-open` | open the WebUI as its own window: the Dock app if you added one, else Chrome in app mode, else the default browser |
-| `make tray` | run the menu bar app by hand |
-| `make uninstall` | disconnect every registered agent's directory (through the hub, so it must be running; if not, the step says so and names the command to run later), remove both LaunchAgents and the Admin app, stop the containers, delete `.venv`. The data volume, the registrations, the charter and `.env` stay |
+| `make hub-status` | the app, who runs the hub, the hub, the shift, the gate |
+| `make hub-stop` | stop the hub (postgres stays up) |
+| `make hub-start` | start the hub |
+| `make hub-restart` | restart the hub |
+| `make hub-open` | open the WebUI as its own window |
+| `make uninstall` | start the hub if it is down (Docker permitting), disconnect every registered agent's directory, stop the hub and postgres, remove the app, its settings and logs, delete `.venv`. The data volume, the registrations, the charter and `.env` stay |
 | `make uninstall PURGE=1` | the same, plus the postgres volume and images |
 
 ### Settings

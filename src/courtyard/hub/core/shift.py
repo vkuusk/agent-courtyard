@@ -241,18 +241,19 @@ class ShiftService:
         self._publish(status)
         return self.tick() or status
 
-    def end(self, force: bool = False) -> ShiftStatus:
-        """Close what the shift opened; refuse (without force) while lines are mid-work."""
+    def end(self, force: bool = False, keep_terminals: bool = False) -> ShiftStatus:
+        """Close what the shift opened; refuse (without force) while lines are mid-work.
+        `keep_terminals` closes the books but leaves the windows open (the app's Quit)."""
         with self._lock:
             if self._doc.get("state") == "off":
                 return self._status()
-            expired_lines, board_events, expired_threads = self._end_locked(force)
+            expired_lines, board_events, expired_threads = self._end_locked(force, keep_terminals)
             status = self._status()
         self._publish_board(board_events, expired_lines, expired_threads)
         self._publish(status)
         return status
 
-    def _end_locked(self, force: bool) -> tuple[list, list]:
+    def _end_locked(self, force: bool, keep_terminals: bool = False) -> tuple[list, list]:
         """The end-of-shift work, caller holding the lock: close the recorded windows,
         close the books (D24), persist `off`. Returns (expired lines, board events)."""
         if not force:
@@ -265,7 +266,7 @@ class ShiftService:
         spawner = self._make_spawner(self._doc.get("terminal_app", "Terminal"))
         closed: list[str] = []
         failed: list[str] = []
-        for spawn in self._doc.get("spawns", []):
+        for spawn in [] if keep_terminals else self._doc.get("spawns", []):
             if not spawn.get("window_ref"):
                 continue
             try:
