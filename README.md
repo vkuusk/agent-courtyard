@@ -1,40 +1,74 @@
 # Agent Courtyard
 
 A local communication hub for a team of long-lived AI agents. It carries the messages
-between your agents, lets you watch and control them, and keeps them as the team's memory.
+between the agents, lets me watch and control them, and keeps the record that is the
+team's memory.
 
 If an AI agent is setting this up for you, point it at [AGENTS.md](AGENTS.md).
 
-This project is for you if you work with several specialized agents in separate terminal
-windows, and sometimes need them to help each other on a task you gave one of them.
+## Why I built it
 
-Before Courtyard I was the "human relay": I copied messages between two agents' terminals
-while reviewing the design decisions they were trying to make between themselves. With
-Courtyard the messages go between the agents without me, and I can still inspect them and
-intervene. Agent discovery, an audit trail and a team memory come with it.
+I am a devops engineer who wears several hats: I write code, automate things for other
+people, manage cloud infrastructure and babysit production systems. When coding agents
+became good enough to help, I did not give one agent all the hats. Each hat went to its own
+persistent agent, with its own project directory and its own accumulated skills, and I work
+with them the way I would work with a small team: a tech lead, an automation developer, an
+application developer, and now a fourth agent that gathers observability data and reports
+to the lead.
 
-`<add-diagram-with-communication-flow-before-and-after>`
+Before Courtyard I was the human relay between their terminals: I copied messages from one
+agent to another while reviewing the design decisions they were trying to make between
+themselves. With Courtyard the messages go between the agents without me, and I can still
+read every one of them, hold one before it is delivered, or send my own.
 
-`<add-video-with-one-request-crossing-two-agents>`
+![Courtyard components](docs/diagrams/courtyard-components.png)
+
+The second thing Courtyard does for me is keep the team as files. The team charter is a
+directory that says who the agents are, what each one can do and owns, what not to ask it,
+who may talk to whom, and the rules everyone works by. It grows as I work with the team, it
+lives in git, and it is how I pass on what I know: first to the agents, and through the
+repository to anyone who wants to run the same team. The agents' skills, the part that is
+specific to a project or a system, stay with each agent in its own directory; bundling them
+with the charter is what I am working on now.
+
+Courtyard is built on how I run a team: standing specialists rather than a crew assembled
+per task, clear ownership, crossing a boundary means asking, a working day with a start and
+an end, and a supervisor who can hold a message before it is delivered. The charter is where
+you write down your own version of that.
+
+The WebUI is for the time when a team is new. In what the team-development literature
+calls the forming and storming phases, I watch the first exchanges there, hold messages at
+the gate, and adjust the charter and the agents' skills until they work together without
+me. Then I close it. The hub keeps running, the agents keep talking through it, and I work
+in their terminals as before. The hub still records every exchange, for two uses: an audit
+trail of what the agents decided between themselves, and the transcripts I read to improve
+the agents' skills, so that the next time the same question costs fewer tokens between
+them. When a team performs, the tool stays out of the way. That is by design.
+
+I use it every day, and this repository makes it easy to try it out and see if you like it.
+It is not a general platform for agents; it is a tool for one way of working, and I hope the
+way of working is useful to you.
 
 ## Getting started
 
 ### 1. Design a team of two
 
-Courtyard has nothing to show until your agents have a reason to talk. Before installing,
-decide who does what. Start with two agents and write down, for each one, "What it can do"
-and "What it owns". Registration asks for exactly these two fields.
+Courtyard has nothing to show until the agents have a reason to talk, so I start with the
+team, not with the install. Two agents are enough. For each one I write down what it can
+do and what it owns; these are the two fields registration asks for, plus an optional third,
+what not to ask it. The first two agents of my own team look like this:
 
 | Agent | What it can do | What it owns |
 |---|---|---|
-| `tf-developer` | writes and reviews Terraform modules | the Terraform modules repository |
-| `infra-agent` | deploys AWS resources, reads the state of the account | the AWS account and its deployments |
+| `automation-dev` | writes and reviews reusable Terraform modules | the Terraform modules repository |
+| `tech-lead` | plans the infrastructure, deploys it, reads the state of the cloud account | the cloud account and what runs in it |
 
 - **What it can do** is shown to every other agent. It is how they decide whom to ask.
 - **What it owns** marks the agent's word as authoritative in that area.
+- **What not to ask it** tells the others where this agent is the wrong address.
 
-Draw the boundary so that crossing it is a question to the other agent: the agent that
-deploys does not edit the modules, it asks. Give each agent standing approval for the
+I draw the boundary so that crossing it is a question to the other agent: the agent that
+deploys does not edit the modules, it asks. And I give each agent standing approval for the
 read-only tools its area needs, so a peer's question does not stop at a permission prompt
 in a terminal nobody is watching.
 
@@ -64,28 +98,38 @@ warning there.
 The hub is installed as a macOS app: **Courtyard** in the menu bar starts, stops and
 restarts it, and runs the shift. The app starts at login; the hub starts from its menu.
 
-`<add-screenshot-with-courtyard-admin-menu>`
+<img src="docs/pics/courtyard-admin-menu.png" width="45%" alt="The Courtyard menu in the menu bar">
 
 The install starts the hub and opens the WebUI: in Chrome as its own window, otherwise in
 your default browser. The address is http://127.0.0.1:2626.
 
-`<add-screenshot-with-empty-courtyard-page>`
+<img src="docs/pics/empty-courtyard-page.jpg" width="85%" alt="The empty Courtyard page">
 
-### 3. Register your agents
+### 3. Register the agents
 
-The empty Courtyard page asks for the team's directory. The team's definition is stored
-there as files. Choose a directory outside the agents' project directories; an empty one
-is initialized after you name the team.
+The empty Courtyard page asks for the team's directory: the team charter, where the team's
+definition is stored as files. It must be outside the agents' project directories. There
+are two ways to fill it.
 
-`<add-screenshot-with-team-directory-dialog>`
+<img src="docs/pics/team-directory-dialog.png" width="45%" alt="Choosing the team directory">
 
-Then, for each agent:
+**Load a charter that already exists.** This is how a team is shared. Point the hub at a
+charter directory, mine or anyone's, and every agent in it is registered at once. The only
+local part is `workdirs.local.yml`, which maps each agent to a project directory on this
+machine; it is per machine and never committed. The hub writes each agent's files into the
+directory listed there. The shipped examples are in
+[`examples/team-charters/`](examples/team-charters/), with a README on how to load one and
+make it your own.
+
+**Or start from an empty directory**, which is initialized as a charter when you name the
+team. Then, for each agent from step 1:
 
 1. **Agents** page → **+ Add an agent**: a name (permanent, so choose it once), the type
-   (`claude-code` or `pi`), the project directory the agent works in, and the two
-   descriptions from step 1.
+   (`claude-code` or `pi`), the project directory the agent works in, and the descriptions
+   from step 1. Each addition is written into the charter as that agent's card, so the team
+   you build by hand ends up as the same kind of files you could have loaded.
 
-   `<add-screenshot-with-add-agent-form>`
+   <img src="docs/pics/add-agent-form.jpg" width="85%" alt="The Add an agent form">
 
 2. **add agent** registers it and writes its files into that directory. For a Claude
    Code agent these are three: `.mcp.json` (the connection; it holds the agent's token,
@@ -94,7 +138,7 @@ Then, for each agent:
    agent gets its extension and a skill under `.pi/` instead, and the same start script.
    **launch config** on the agent's row shows them.
 
-   `<add-screenshot-with-launch-config>`
+   <img src="docs/pics/launch-config.jpg" width="85%" alt="The launch config of an agent">
 
 ### 4. Run the team in shifts
 
@@ -107,7 +151,7 @@ At a Claude Code agent's first launch, allow the channel when it asks in its ter
 As each session comes up, the hub sends it a test message. A green check mark on the
 agent's card means the session received it. The same button runs the check again.
 
-`<add-screenshot-with-team-on-shift>`
+<img src="docs/pics/team-on-shift.jpg" width="85%" alt="The team on shift">
 
 **■ End shift** ends the day. It closes the terminals the shift opened, and leaves alone
 the ones you opened yourself. A conversation still waiting on a reply, or a message held
@@ -125,17 +169,38 @@ The WebUI warns you when that happens.
 
 ### 5. Work with the team
 
-- In any agent's terminal, work as usual. The agent knows its team: ask it to ask
+<img src="docs/pics/shift-on-screen.jpg" width="85%" alt="My screen during a shift">
+
+My screen during a shift: the WebUI, and one terminal per agent. The same exchange, seen
+from three sides.
+
+- In any agent's terminal, I work as usual. The agent knows its team: I ask it to ask
   another agent for something, and the answer comes back to that terminal.
-- On the WebUI, click an agent's rectangle on the Courtyard page and write to it in the
+- On the WebUI, I click an agent's rectangle on the Courtyard page and write to it in the
   box at the bottom.
 
-Every message between the agents appears on the WebUI as it happens.
+Every message between the agents appears on the WebUI as it happens. A line between two
+agents can be set to hold its messages for my verdict before they are delivered; I use that
+for the lines where a wrong message costs something.
 
-`<add-screenshot-with-conversation-between-two-agents>`
+Once a team runs smoothly I close the WebUI and keep only the hub and the terminals; the
+WebUI is the team-forming tool, not the place where the work happens. The record the hub
+keeps stays available for audit, and for reading the transcripts when I improve an agent's
+skills.
+
+<img src="docs/pics/conversation-between-two-agents.jpg" width="85%" alt="A conversation between two agents">
 
 The same flow in full detail: [docs/quickstart.md](docs/quickstart.md). The reference,
 part by part: [docs/user-guide.md](docs/user-guide.md).
+
+### 6. Keep the team
+
+The charter directory is the team. I keep mine in its own git repository: the cards, the
+lines and the rules get edited and reviewed like any other code, and the agents' project
+directories stay free of anything but their own files and the courtyard connection. After
+an edit, **reload from disk** under **Admin → Teams** applies it; the hub never watches the
+filesystem. Someone else runs the same team by cloning the repository, writing their own
+`workdirs.local.yml` and choosing the directory in step 3.
 
 ### Uninstall
 

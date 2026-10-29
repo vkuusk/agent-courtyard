@@ -85,7 +85,16 @@ card files, so the team definition stays reviewable and portable.
 A charter directory that already defines the team needs no registration commands:
 choosing it (`--team-dir`, or the WebUI) registers every agent and writes the three
 files below into each workdir its `workdirs.local.yml` lists; the other agents get
-theirs when the operator chooses their directory under Admin, Teams.
+theirs when the operator chooses their directory under Admin, Teams. Ready-made
+charters to load, or to copy and adapt, are in
+[examples/team-charters/](examples/team-charters/); its README says how.
+
+If you drive the WebUI through a browser automation tool, two steps of the team
+setup are invisible to it: the team directory chooser is a native macOS folder
+dialog, and the team's name is asked in a browser `prompt()` dialog. Use
+`courtyard-invite --team-dir` for that step, or `POST /api/teams` with
+`charter_dir` and `name` followed by `POST /api/teams/current`; the rest of the
+WebUI is ordinary HTML.
 
 This writes three files into the workdir: `.mcp.json` (holds the agent's hub
 token, permissions 600, must not be committed), a `.claude/settings.local.json`
